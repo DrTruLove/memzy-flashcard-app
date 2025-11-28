@@ -1,0 +1,53 @@
+PODS:
+  - Capacitor (7.4.4):
+    - CapacitorCordova
+  - CapacitorCamera (7.0.2):
+    - Capacitor
+  - CapacitorCommunityTextToSpeech (6.1.0):
+    - Capacitor
+  - CapacitorCordova (7.4.4)
+  - CapacitorFilesystem (7.1.4):
+    - Capacitor
+    - IONFilesystemLib (~> 1.0.1)
+  - CapacitorShare (7.0.2):
+    - Capacitor
+  - IONFilesystemLib (1.0.1)
+
+DEPENDENCIES:
+  - "Capacitor (from `../../node_modules/.pnpm/@capacitor+ios@7.4.4_@capacitor+core@7.4.4/node_modules/@capacitor/ios`)"
+  - "CapacitorCamera (from `../../node_modules/.pnpm/@capacitor+camera@7.0.2_@capacitor+core@7.4.4/node_modules/@capacitor/camera`)"
+  - "CapacitorCommunityTextToSpeech (from `../../node_modules/.pnpm/@capacitor-community+text-to-speech@6.1.0_@capacitor+core@7.4.4/node_modules/@capacitor-community/text-to-speech`)"
+  - "CapacitorCordova (from `../../node_modules/.pnpm/@capacitor+ios@7.4.4_@capacitor+core@7.4.4/node_modules/@capacitor/ios`)"
+  - "CapacitorFilesystem (from `../../node_modules/.pnpm/@capacitor+filesystem@7.1.4_@capacitor+core@7.4.4/node_modules/@capacitor/filesystem`)"
+  - "CapacitorShare (from `../../node_modules/.pnpm/@capacitor+share@7.0.2_@capacitor+core@7.4.4/node_modules/@capacitor/share`)"
+
+SPEC REPOS:
+  trunk:
+    - IONFilesystemLib
+
+EXTERNAL SOURCES:
+  Capacitor:
+    :path: "../../node_modules/.pnpm/@capacitor+ios@7.4.4_@capacitor+core@7.4.4/node_modules/@capacitor/ios"
+  CapacitorCamera:
+    :path: "../../node_modules/.pnpm/@capacitor+camera@7.0.2_@capacitor+core@7.4.4/node_modules/@capacitor/camera"
+  CapacitorCommunityTextToSpeech:
+    :path: "../../node_modules/.pnpm/@capacitor-community+text-to-speech@6.1.0_@capacitor+core@7.4.4/node_modules/@capacitor-community/text-to-speech"
+  CapacitorCordova:
+    :path: "../../node_modules/.pnpm/@capacitor+ios@7.4.4_@capacitor+core@7.4.4/node_modules/@capacitor/ios"
+  CapacitorFilesystem:
+    :path: "../../node_modules/.pnpm/@capacitor+filesystem@7.1.4_@capacitor+core@7.4.4/node_modules/@capacitor/filesystem"
+  CapacitorShare:
+    :path: "../../node_modules/.pnpm/@capacitor+share@7.0.2_@capacitor+core@7.4.4/node_modules/@capacitor/share"
+
+SPEC CHECKSUMS:
+  Capacitor: 358dd1c3fdd71d969547b17e159fd8a7736cb45f
+  CapacitorCamera: f9e54db0a18bb218a8dc360907d63aaefe9209ff
+  CapacitorCommunityTextToSpeech: 28e4eaf26995ce7ab710480267841c57ef5eded2
+  CapacitorCordova: bf648a636f3c153f652d312ae145fb508b6ffced
+  CapacitorFilesystem: f9bd850c41e048180e5dc0cbb90f2033ede9d2cc
+  CapacitorShare: be166411fa995ead2d39b104aa0aae56d8615c66
+  IONFilesystemLib: 89258b8e3e85465da93127d25d7ce37f977e8a6f
+
+PODFILE CHECKSUM: 8081fb758f6e54748c47042d237d06cd8c075d6e
+
+COCOAPODS: 1.16.2
