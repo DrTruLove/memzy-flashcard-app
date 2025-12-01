@@ -1,4 +1,5 @@
 import Replicate from "replicate"
+import { GoogleGenerativeAI } from "@google/generative-ai"
 
 export async function POST(request: Request) {
   try {
@@ -47,43 +48,74 @@ export async function POST(request: Request) {
 
 
     
-    // Use free translation API (MyMemory)
-    const translateUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(englishWord)}&langpair=en|es`
+    // Try Gemini for translation first (more accurate)
+    let spanishTranslation = ''
+    const geminiKey = process.env.GEMINI_API_KEY
     
-    const translateResponse = await fetch(
-      translateUrl,
-      { signal: AbortSignal.timeout(10000) } // 10 second timeout
-    )
-    
-    if (!translateResponse.ok) {
-      throw new Error("Translation failed")
+    if (geminiKey) {
+      try {
+        const genAI = new GoogleGenerativeAI(geminiKey)
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" })
+
+        const prompt = `You are a professional Spanish translator specializing in educational flashcards. 
+          
+Translate the following English word or phrase to Spanish. Provide ONLY the Spanish translation, nothing else.
+
+Rules:
+- If it's a single word, provide the single Spanish word
+- If it's a phrase, provide the Spanish phrase
+- Use proper Spanish grammar and capitalization
+- Do not include explanations, articles (unless part of the phrase), or additional text
+
+English: ${englishWord}
+Spanish:`
+
+        const result = await model.generateContent(prompt)
+        spanishTranslation = result.response.text().trim()
+      } catch (geminiError) {
+        console.error('[analyze-image] Gemini translation failed:', geminiError)
+      }
     }
     
-    const translateData = await translateResponse.json()
-    let spanishTranslation = translateData.responseData.translatedText
+    // Fallback to MyMemory if Gemini failed
+    if (!spanishTranslation) {
+      const translateUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(englishWord)}&langpair=en|es`
+      
+      const translateResponse = await fetch(
+        translateUrl,
+        { signal: AbortSignal.timeout(10000) } // 10 second timeout
+      )
+      
+      if (!translateResponse.ok) {
+        throw new Error("Translation failed")
+      }
+      
+      const translateData = await translateResponse.json()
+      spanishTranslation = translateData.responseData.translatedText
 
-    
-    // If translation is the same as input, try alternate API (LibreTranslate)
-    if (englishWord.toLowerCase() === spanishTranslation.toLowerCase()) {
-      try {
-        const libreResponse = await fetch('https://libretranslate.com/translate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            q: englishWord,
-            source: 'en',
-            target: 'es',
-            format: 'text'
-          }),
-          signal: AbortSignal.timeout(10000)
-        })
-        
-        if (libreResponse.ok) {
-          const libreData = await libreResponse.json()
-          spanishTranslation = libreData.translatedText
+      
+      // If translation is the same as input, try alternate API (LibreTranslate)
+      if (englishWord.toLowerCase() === spanishTranslation.toLowerCase()) {
+        try {
+          const libreResponse = await fetch('https://libretranslate.com/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              q: englishWord,
+              source: 'en',
+              target: 'es',
+              format: 'text'
+            }),
+            signal: AbortSignal.timeout(10000)
+          })
+          
+          if (libreResponse.ok) {
+            const libreData = await libreResponse.json()
+            spanishTranslation = libreData.translatedText
+          }
+        } catch (libreError) {
+          // Keep original translation
         }
-      } catch (libreError) {
-        // Keep original translation
       }
     }
 

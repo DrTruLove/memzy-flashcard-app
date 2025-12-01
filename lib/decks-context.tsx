@@ -80,11 +80,12 @@ export function DecksProvider({ children }: { children: ReactNode }) {
     'user-decks',
     fetchDecksWithInfo,
     {
-      revalidateOnFocus: true, // Refetch when window regains focus (to show updated favorites)
-      revalidateOnMount: true, // Always fetch fresh data on mount
+      revalidateOnFocus: false, // Don't refetch every time window regains focus (causes lag)
+      revalidateOnMount: true, // Fetch fresh data on initial mount
       revalidateOnReconnect: true, // Refetch when internet reconnects
-      dedupingInterval: 1000, // Reduced from 5000 to allow more frequent updates
+      dedupingInterval: 5000, // Longer interval (5s) to prevent duplicate requests
       refreshInterval: 0, // Don't auto-refresh (manual only via mutate)
+      keepPreviousData: true, // Keep showing old data while revalidating (prevents flash)
     }
   )
 

@@ -596,6 +596,31 @@ export async function deleteDeck(deckId: string): Promise<boolean> {
   return true
 }
 
+// Update deck name
+export async function updateDeckName(deckId: string, newName: string): Promise<boolean> {
+  const user = await authCache.getUser()
+  
+  if (!user) {
+    throw new Error('User must be logged in to update decks')
+  }
+
+  const { error } = await supabase
+    .from('decks')
+    .update({ 
+      name: newName,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', deckId)
+    .eq('user_id', user.id)
+
+  if (error) {
+    console.error('Error updating deck name:', error)
+    return false
+  }
+
+  return true
+}
+
 // Update flashcard image
 export async function updateFlashcardImage(
   cardId: string,

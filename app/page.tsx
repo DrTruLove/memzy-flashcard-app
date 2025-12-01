@@ -150,6 +150,7 @@ export default function MemzyPage() {
   const [englishWord, setEnglishWord] = useState("")
   const [spanishWord, setSpanishWord] = useState("")
   const [isTranslating, setIsTranslating] = useState(false)
+  const [analysisStage, setAnalysisStage] = useState(0) // 0: preparing, 1: analyzing, 2: translating
   const [error, setError] = useState("")
   const [showResult, setShowResult] = useState(false)
   const [isFlipped, setIsFlipped] = useState(false)
@@ -976,6 +977,7 @@ export default function MemzyPage() {
     setShowGems(true)
 
     setIsTranslating(true)
+    setAnalysisStage(0) // Start with preparing stage
     setError("")
 
     try {
@@ -1008,6 +1010,9 @@ export default function MemzyPage() {
         imageToSend = canvas.toDataURL('image/jpeg', 0.7)
       }
 
+      // Move to analyzing stage
+      setAnalysisStage(1)
+
       // Use relative path since API route is in the same Next.js app
       const response = await fetch('/api/analyze-image', {
         method: "POST",
@@ -1016,6 +1021,9 @@ export default function MemzyPage() {
         },
         body: JSON.stringify({ imageBase64: imageToSend }),
       })
+
+      // Move to translating stage (the API already handles translation)
+      setAnalysisStage(2)
 
       if (!response.ok) {
         const errorData = await response.json()
@@ -1252,7 +1260,12 @@ export default function MemzyPage() {
                       {isTranslating ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          {t.analyzingImage}
+                          {analysisStage === 0 
+                            ? (primaryLanguage === 'es' ? 'Preparando imagen...' : 'Preparing image...')
+                            : analysisStage === 1 
+                            ? (primaryLanguage === 'es' ? 'Analizando con IA...' : 'AI analyzing...')
+                            : (primaryLanguage === 'es' ? 'Traduciendo...' : 'Translating...')
+                          }
                         </>
                       ) : (
                         primaryLanguage === 'es' ? "Analizar Imagen y Generar Tarjeta" : "Analyze Image & Generate Flashcard"

@@ -21,6 +21,8 @@ interface DownloadCardsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   initialSelectedCard?: { id: string; card: Flashcard }
+  initialDeckId?: string
+  initialDeckName?: string
 }
 
 interface Deck {
@@ -43,7 +45,7 @@ interface DeckWithAllCards extends Deck {
   loading: boolean
 }
 
-export function DownloadCardsDialog({ open, onOpenChange, initialSelectedCard }: DownloadCardsDialogProps) {
+export function DownloadCardsDialog({ open, onOpenChange, initialSelectedCard, initialDeckId, initialDeckName }: DownloadCardsDialogProps) {
   const { primaryLanguage } = useLanguage()
   const { decks: contextDecks } = useDecks()
   
@@ -68,6 +70,7 @@ export function DownloadCardsDialog({ open, onOpenChange, initialSelectedCard }:
   
   const [allDecksWithCards, setAllDecksWithCards] = useState<DeckWithAllCards[]>([])
   const [selectedCards, setSelectedCards] = useState<Map<string, Flashcard>>(new Map())
+  const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null) // Track which deck cards come from
   const [loading, setLoading] = useState(true)
   const [isDownloading, setIsDownloading] = useState(false)
 
@@ -79,12 +82,16 @@ export function DownloadCardsDialog({ open, onOpenChange, initialSelectedCard }:
       if (initialSelectedCard) {
         setSelectedCards(new Map([[initialSelectedCard.id, initialSelectedCard.card]]))
       }
+      if (initialDeckId) {
+        setSelectedDeckId(initialDeckId)
+      }
       setHasInitialized(true)
     } else if (!open) {
       // Reset initialization flag when dialog closes
       setHasInitialized(false)
+      setSelectedDeckId(null) // Reset selected deck when closing
     }
-  }, [initialSelectedCard, open, hasInitialized])
+  }, [initialSelectedCard, initialDeckId, open, hasInitialized])
 
   // Load all decks with their cards
   useEffect(() => {
@@ -238,20 +245,47 @@ export function DownloadCardsDialog({ open, onOpenChange, initialSelectedCard }:
     return sampleDeckData[deckId]
   }
 
-  const handleToggleCard = (card: Flashcard) => {
+  const handleToggleCard = (card: Flashcard, deckId: string) => {
     setSelectedCards(prev => {
       const newMap = new Map(prev)
       if (newMap.has(card.id)) {
         newMap.delete(card.id)
+        // If no cards left, clear the selected deck
+        if (newMap.size === 0) {
+          setSelectedDeckId(null)
+        }
       } else {
         if (newMap.size < 8) {
           newMap.set(card.id, card)
+          // Track which deck the cards are from
+          setSelectedDeckId(deckId)
         } else {
           alert("Maximum 8 cards can be selected")
         }
       }
       return newMap
     })
+  }
+
+  // Get the selected deck info for the header
+  const getSelectedDeckInfo = () => {
+    if (!selectedDeckId) return null
+    const deck = allDecksWithCards.find(d => d.id === selectedDeckId)
+    
+    // Use deck name from loaded decks, or fall back to initialDeckName
+    const deckName = deck?.name || initialDeckName || 'Deck'
+    const isUserDeck = deck?.isUserDeck ?? true // Assume user deck if not found
+    
+    // Find sample deck for Spanish name
+    const sampleDeck = sampleDecks.find(s => s.id === selectedDeckId)
+    
+    // For sample decks, use the predefined Spanish name
+    // For user decks, we'll need to translate dynamically
+    return {
+      name: deckName,
+      nameEs: sampleDeck?.nameEs || null, // null for user decks - will trigger translation
+      isUserDeck: isUserDeck
+    }
   }
 
   const handleDownload = async () => {
@@ -327,15 +361,74 @@ export function DownloadCardsDialog({ open, onOpenChange, initialSelectedCard }:
     ctx.fillStyle = '#ffffff'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
 
+    // Get deck info for header
+    const deckInfo = getSelectedDeckInfo()
+
     const cols = 4
     const rows = 2
     // Add proper printing margins (0.5 inch on all sides = 75px at 150 DPI)
     const printMargin = 75
+    const headerHeight = deckInfo ? 50 : 0 // Space for deck title
+    const footerHeight = 35 // Space for single Memzy footer at bottom
     const usableWidth = canvas.width - (printMargin * 2)
-    const usableHeight = canvas.height - (printMargin * 2)
+    const usableHeight = canvas.height - (printMargin * 2) - headerHeight - footerHeight
     const gap = 20
     const cardWidth = (usableWidth - (gap * (cols - 1))) / cols
     const cardHeight = (usableHeight - (gap * (rows - 1))) / rows
+
+    // Load Memzy logo once for all cards
+    let logoImg: HTMLImageElement | null = null
+    try {
+      logoImg = await loadImage('/memzy-logo.png')
+    } catch (err) {
+      console.error('Failed to load Memzy logo:', err)
+    }
+
+    // Draw deck title header if we have deck info
+    if (deckInfo) {
+      ctx.fillStyle = '#8B2FFB' // purple
+      ctx.font = 'bold 28px Arial'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'top'
+      
+      // Get Spanish translation for the deck name
+      let spanishName = deckInfo.nameEs
+      
+      // For user decks (no preset Spanish name), translate the deck name
+      if (!spanishName && deckInfo.isUserDeck) {
+        try {
+          const response = await fetch('/api/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: deckInfo.name, targetLang: 'es' })
+          })
+          if (response.ok) {
+            const data = await response.json()
+            spanishName = data.translation
+          }
+        } catch (err) {
+          console.error('Failed to translate deck name:', err)
+        }
+      }
+      
+      // Format: "Animals / Animales" - always show both languages
+      let titleText = ''
+      if (spanishName && spanishName !== deckInfo.name) {
+        // Show English / Spanish format
+        titleText = `${deckInfo.name} / ${spanishName}`
+      } else {
+        // Fallback to just the name if translation failed or same
+        titleText = deckInfo.name
+      }
+      
+      ctx.fillText(titleText, canvas.width / 2, printMargin)
+    }
+
+    // Determine words based on primary language
+    // If primary is English: English (small) at top, Spanish (large, purple) at bottom
+    // If primary is Spanish: Spanish (small) at top, English (large, purple) at bottom
+    const getTopWord = (card: Flashcard) => primaryLanguage === 'en' ? card.english_word : card.spanish_word
+    const getBottomWord = (card: Flashcard) => primaryLanguage === 'en' ? card.spanish_word : card.english_word
 
     // Load and draw each card (up to 8 cards)
     for (let i = 0; i < Math.min(cards.length, 8); i++) {
@@ -343,59 +436,39 @@ export function DownloadCardsDialog({ open, onOpenChange, initialSelectedCard }:
       const col = i % cols
       const row = Math.floor(i / cols)
       const x = printMargin + col * (cardWidth + gap)
-      const y = printMargin + row * (cardHeight + gap)
+      const y = printMargin + headerHeight + row * (cardHeight + gap)
 
       // Draw card border (purple to match app colors)
       ctx.strokeStyle = '#8B2FFB'
       ctx.lineWidth = 10
       ctx.strokeRect(x, y, cardWidth, cardHeight)
 
-      // Draw AI badge if card is AI-generated
-      if (card.is_ai_generated) {
-        const badgeSize = 28
+      // Draw AI badge if card is AI-generated (check for truthy value)
+      // User-created cards from AI analysis will have is_ai_generated === true
+      const isAiGenerated = card.is_ai_generated === true
+      if (isAiGenerated && logoImg) {
+        const badgeSize = 32
         const badgeX = x + 12
         const badgeY = y + 12
-        
-        ctx.save()
-        ctx.translate(badgeX + badgeSize/2, badgeY + badgeSize/2)
-        ctx.rotate(-45 * Math.PI / 180)
-        
-        // Draw purple diamond
-        ctx.fillStyle = '#9333ea'
-        ctx.beginPath()
-        ctx.moveTo(0, -badgeSize/2)
-        ctx.lineTo(badgeSize/2, 0)
-        ctx.lineTo(0, badgeSize/2)
-        ctx.lineTo(-badgeSize/2, 0)
-        ctx.closePath()
-        ctx.fill()
-        
-        // Draw white sparkle
-        ctx.fillStyle = '#ffffff'
-        ctx.font = 'bold 16px Arial'
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillText('✦', 0, 0)
-        
-        ctx.restore()
+        ctx.drawImage(logoImg, badgeX, badgeY, badgeSize, badgeSize)
       }
 
       // Calculate layout with proper spacing between elements
       const contentPadding = 30
-      const topTextArea = 50 // Space for Spanish word
-      const bottomTextArea = 50 // Space for English word
-      const verticalGap = 15 // Gap above and below image
+      const topTextArea = 35 // Space for smaller primary word
+      const bottomTextArea = 55 // Space for larger translated word
+      const verticalGap = 12 // Gap above and below image
       const availableImageHeight = cardHeight - contentPadding - topTextArea - (verticalGap * 2) - bottomTextArea - contentPadding
       
-      // Draw Spanish word at top
-      ctx.fillStyle = '#9333ea'
-      ctx.font = 'bold 32px Arial'
+      // Draw primary language word at top (smaller, black, not bold)
+      ctx.fillStyle = '#374151' // gray-700
+      ctx.font = '22px Arial'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'top'
-      const spanishY = y + contentPadding
-      ctx.fillText(card.spanish_word, x + cardWidth / 2, spanishY)
+      const topWordY = y + contentPadding
+      ctx.fillText(getTopWord(card), x + cardWidth / 2, topWordY)
 
-      // Calculate image area - positioned after Spanish word with gap
+      // Calculate image area - positioned after top word with gap
       const imageAreaTop = y + contentPadding + topTextArea + verticalGap
       const imageAreaWidth = cardWidth - 80 // More horizontal padding
       
@@ -435,13 +508,46 @@ export function DownloadCardsDialog({ open, onOpenChange, initialSelectedCard }:
         }
       }
       
-      // Always draw English word at bottom (regardless of image success)
-      ctx.fillStyle = '#1f2937'
-      ctx.font = '500 26px Arial'
+      // Draw translated word at bottom (larger, purple, bold)
+      ctx.fillStyle = '#9333ea' // purple-600
+      ctx.font = 'bold 30px Arial'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'bottom'
-      const englishY = y + cardHeight - contentPadding
-      ctx.fillText(card.english_word, x + cardWidth / 2, englishY)
+      const bottomWordY = y + cardHeight - contentPadding
+      ctx.fillText(getBottomWord(card), x + cardWidth / 2, bottomWordY)
+    }
+
+    // Draw single Memzy footer at bottom of page (centered)
+    if (logoImg) {
+      ctx.globalAlpha = 0.5
+      const footerY = canvas.height - printMargin + 25 // Push footer further down, closer to page edge
+      const footerLogoSize = 24
+      
+      // Calculate footer width
+      ctx.font = 'bold 18px Arial'
+      const footerText = 'Created with Memzy'
+      const footerTextWidth = ctx.measureText(footerText).width
+      const totalFooterWidth = footerLogoSize + 8 + footerTextWidth
+      const footerStartX = (canvas.width - totalFooterWidth) / 2
+      
+      // Apply grayscale effect to logo
+      const tempCanvas = document.createElement('canvas')
+      tempCanvas.width = footerLogoSize
+      tempCanvas.height = footerLogoSize
+      const tempCtx = tempCanvas.getContext('2d')
+      if (tempCtx) {
+        tempCtx.filter = 'grayscale(100%)'
+        tempCtx.drawImage(logoImg, 0, 0, footerLogoSize, footerLogoSize)
+        ctx.drawImage(tempCanvas, footerStartX, footerY - footerLogoSize + 4, footerLogoSize, footerLogoSize)
+      }
+      
+      // Draw "Created with Memzy" text
+      ctx.fillStyle = '#6b7280' // gray-500
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'bottom'
+      ctx.fillText(footerText, footerStartX + footerLogoSize + 8, footerY)
+      
+      ctx.globalAlpha = 1.0
     }
 
     // Download as JPG - use native sharing on mobile
@@ -573,12 +679,14 @@ export function DownloadCardsDialog({ open, onOpenChange, initialSelectedCard }:
                             <div
                               key={card.id}
                               className="flex items-center space-x-3 rounded-lg border border-border p-2 hover:bg-accent cursor-pointer"
-                              onClick={() => handleToggleCard(card)}
+                              onClick={() => handleToggleCard(card, deck.id)}
                             >
-                              <Checkbox
-                                checked={selectedCards.has(card.id)}
-                                onCheckedChange={() => handleToggleCard(card)}
-                              />
+                              <div onClick={(e) => e.stopPropagation()}>
+                                <Checkbox
+                                  checked={selectedCards.has(card.id)}
+                                  onCheckedChange={() => handleToggleCard(card, deck.id)}
+                                />
+                              </div>
                               <div className="flex-1 min-w-0">
                                 <div className="font-medium truncate text-sm">{card.english_word}</div>
                                 <div className="text-xs text-muted-foreground truncate">{card.spanish_word}</div>

@@ -5,15 +5,15 @@ import { Button } from "@/components/ui/button"
 import { FloatingNav } from "@/components/floating-nav"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
-import { BookOpen, User, Download, Loader2, Trash2 } from "lucide-react"
-import { useState, useEffect } from "react"
+import { BookOpen, User, Download, Trash2 } from "lucide-react"
+import { useState, useEffect, useMemo } from "react"
 import { useDecks } from "@/lib/decks-context"
 import { supabase } from "@/lib/supabase"
 import { DownloadCardsDialog } from "@/components/print-cards-dialog"
 import { useLanguage } from "@/lib/language-context"
-import { GemLoader } from "@/components/gem-loader"
 import { deleteDeck } from "@/lib/database"
 import MemzyLogo from "@/components/memzy-logo"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -76,10 +76,10 @@ const sampleDecks = [
 export default function BrowseDecksPage() {
   const router = useRouter()
   const { primaryLanguage } = useLanguage()
-  const { decks: contextDecks, isLoading: loadingUserDecks } = useDecks()
+  const { decks: contextDecks, isLoading: loadingUserDecks, mutate: mutateDecks } = useDecks()
   
-  // Translation strings
-  const t = {
+  // Memoize translation strings to avoid recalculation on every render
+  const t = useMemo(() => ({
     browseDecks: primaryLanguage === 'es' ? 'Explorar Mazos' : 'Browse Decks',
     allDecks: primaryLanguage === 'es' ? 'Todos los Mazos' : 'All Decks',
     sampleDecks: primaryLanguage === 'es' ? 'Mazos de Muestra' : 'Sample Decks',
@@ -90,23 +90,14 @@ export default function BrowseDecksPage() {
     download: primaryLanguage === 'es' ? 'Descargar' : 'Download',
     favorites: primaryLanguage === 'es' ? 'Favoritos' : 'Favorites',
     favoritesDesc: primaryLanguage === 'es' ? 'Tus tarjetas favoritas' : 'Your favorited cards',
-  }
+  }), [primaryLanguage])
   
-  const [userDecks, setUserDecks] = useState<Array<{
-    id: string
-    title: string
-    description?: string
-    cardCount: number
-    coverImage?: string
-    isUserDeck: boolean
-  }>>([])
   const [printDialogOpen, setPrintDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [confirmDeleteDialogOpen, setConfirmDeleteDialogOpen] = useState(false)
   const [deckToDelete, setDeckToDelete] = useState<{ id: string; title: string; isSampleDeck?: boolean } | null>(null)
   const [hiddenSampleDecks, setHiddenSampleDecks] = useState<string[]>([])
   const [user, setUser] = useState<any>(null)
-  const { mutate: mutateDecks } = useDecks()
 
   // Check authentication and load hidden sample decks
   useEffect(() => {
@@ -125,9 +116,9 @@ export default function BrowseDecksPage() {
     checkAuth()
   }, [])
 
-  useEffect(() => {
-    // Transform context decks for display
-    const decksWithCounts = contextDecks.map((d) => ({
+  // Memoize user decks transformation to avoid re-running on every render
+  const userDecks = useMemo(() => {
+    return contextDecks.map((d) => ({
       id: d.id,
       // Translate Favorites deck name
       title: d.name === 'Favorites' ? t.favorites : d.name,
@@ -139,9 +130,7 @@ export default function BrowseDecksPage() {
       coverImage: d.coverImage || undefined,
       isUserDeck: true
     }))
-    
-    setUserDecks(decksWithCounts)
-  }, [contextDecks, t.yourCustomDeck, t.favorites, t.favoritesDesc])
+  }, [contextDecks, t.favorites, t.favoritesDesc, t.yourCustomDeck])
 
   // Handle delete button click - first confirmation
   const handleDeleteClick = (e: React.MouseEvent, deck: { id: string; title: string }, isSampleDeck: boolean = false) => {
@@ -171,7 +160,7 @@ export default function BrowseDecksPage() {
       // For user decks, delete from database
       const success = await deleteDeck(deckToDelete.id)
       if (success) {
-        setUserDecks(prev => prev.filter(d => d.id !== deckToDelete.id))
+        // Trigger SWR revalidation to refresh the deck list
         mutateDecks()
       } else {
         alert(primaryLanguage === 'es' ? 'Error al eliminar el mazo' : 'Failed to delete deck')
@@ -223,11 +212,23 @@ export default function BrowseDecksPage() {
               <div className="mb-4 flex items-center gap-2">
                 <User className="h-5 w-5 text-purple-600" />
                 <h2 className="text-2xl font-bold text-foreground">{t.yourDecks}</h2>
-                {loadingUserDecks && (
-                  <GemLoader size={32} />
-                )}
               </div>
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {/* Show skeleton cards while loading */}
+                {loadingUserDecks && userDecks.length === 0 && (
+                  <>
+                    {[1, 2, 3].map((i) => (
+                      <Card key={`skeleton-${i}`} className="overflow-hidden">
+                        <Skeleton className="aspect-[3/2] w-full" />
+                        <div className="p-4 space-y-2">
+                          <Skeleton className="h-6 w-3/4" />
+                          <Skeleton className="h-4 w-full" />
+                          <Skeleton className="h-4 w-1/3" />
+                        </div>
+                      </Card>
+                    ))}
+                  </>
+                )}
                 {userDecks.map((deck) => {
                   const isSpecialDeck = (deck as any).originalName === 'Favorites' || (deck as any).originalName === 'Uncategorized'
                   const isEmpty = deck.cardCount === 0

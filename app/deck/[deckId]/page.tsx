@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
-import { getDeckWithCards, createFlashcard, createDeck, addCardToDecks, removeCardFromDeck, deleteFlashcard, updateFlashcardImage, getSampleCardCustomizations, saveSampleCardCustomization, addCardToFavorites, removeCardFromFavorites, isCardInFavorites, deleteDeck, moveCardToUncategorized, copySampleCardToUncategorized } from "@/lib/database"
+import { getDeckWithCards, createFlashcard, createDeck, addCardToDecks, removeCardFromDeck, deleteFlashcard, updateFlashcardImage, getSampleCardCustomizations, saveSampleCardCustomization, addCardToFavorites, removeCardFromFavorites, isCardInFavorites, deleteDeck, moveCardToUncategorized, copySampleCardToUncategorized, updateDeckName } from "@/lib/database"
 import type { DeckWithCards } from "@/lib/database"
 import { useDecks } from "@/lib/decks-context"
 import MemzyLogo from "@/components/memzy-logo"
@@ -208,6 +208,9 @@ export default function DeckPage({ params }: { params: { deckId: string } }) {
   const [user, setUser] = useState<any>(null)
   const [isFavorited, setIsFavorited] = useState(false)
   const [showFavoritingLoader, setShowFavoritingLoader] = useState(false)
+  const [isEditingDeckName, setIsEditingDeckName] = useState(false)
+  const [editedDeckName, setEditedDeckName] = useState("")
+  const [isSavingDeckName, setIsSavingDeckName] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const { decks: contextDecks, mutate: mutateDecks } = useDecks()
@@ -339,6 +342,32 @@ export default function DeckPage({ params }: { params: { deckId: string } }) {
       router.push('/my-decks')
     } else {
       alert('Failed to delete deck. Please try again.')
+    }
+  }
+
+  // Handle saving edited deck name
+  const handleSaveDeckName = async () => {
+    if (!editedDeckName.trim()) {
+      setIsEditingDeckName(false)
+      return
+    }
+    
+    setIsSavingDeckName(true)
+    try {
+      const success = await updateDeckName(deckId, editedDeckName.trim())
+      if (success) {
+        // Update local deck state
+        setDeck((prev: any) => prev ? { ...prev, name: editedDeckName.trim() } : prev)
+        mutateDecks() // Refresh deck list
+      } else {
+        alert(primaryLanguage === 'es' ? 'Error al guardar el nombre' : 'Failed to save name')
+      }
+    } catch (error) {
+      console.error('Error saving deck name:', error)
+      alert(primaryLanguage === 'es' ? 'Error al guardar el nombre' : 'Failed to save name')
+    } finally {
+      setIsSavingDeckName(false)
+      setIsEditingDeckName(false)
     }
   }
 
@@ -1221,6 +1250,11 @@ export default function DeckPage({ params }: { params: { deckId: string } }) {
     }
   }
 
+  // Check if this is a sample deck (not editable) or special deck (Favorites, Uncategorized)
+  const isSampleDeck = deckData[deckId] !== undefined
+  const isSpecialDeck = rawDeckName === 'Favorites' || rawDeckName === 'Uncategorized'
+  const canEditDeckName = !isSampleDeck && !isSpecialDeck && user
+
   return (
     <div className="min-h-screen bg-background pb-20 pt-safe">
       <FloatingNav />
@@ -1228,7 +1262,52 @@ export default function DeckPage({ params }: { params: { deckId: string } }) {
       <main className="container mx-auto px-4 py-4">
         <div className="mx-auto max-w-4xl">
           <div className="mb-4 text-center">
-            <h1 className="mb-2 text-4xl font-bold text-foreground">{deckTitle}</h1>
+            {isEditingDeckName ? (
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Input
+                  value={editedDeckName}
+                  onChange={(e) => setEditedDeckName(e.target.value)}
+                  className="text-2xl font-bold text-center max-w-xs"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveDeckName()
+                    if (e.key === 'Escape') setIsEditingDeckName(false)
+                  }}
+                />
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={handleSaveDeckName}
+                  disabled={isSavingDeckName}
+                >
+                  {isSavingDeckName ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setIsEditingDeckName(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <h1 className="text-4xl font-bold text-foreground">{deckTitle}</h1>
+                {canEditDeckName && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8"
+                    onClick={() => {
+                      setEditedDeckName(rawDeckName)
+                      setIsEditingDeckName(true)
+                    }}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            )}
             <p className="text-muted-foreground">
               {t.card} {currentCardIndex + 1} {t.of} {cards.length}
             </p>
@@ -1686,6 +1765,8 @@ export default function DeckPage({ params }: { params: { deckId: string } }) {
       <DownloadCardsDialog
         open={showMultiDownloadDialog}
         onOpenChange={setShowMultiDownloadDialog}
+        initialDeckId={deckId}
+        initialDeckName={rawDeckName}
         initialSelectedCard={
           currentCard
             ? {
@@ -1695,6 +1776,7 @@ export default function DeckPage({ params }: { params: { deckId: string } }) {
                   english_word: currentCard.english,
                   spanish_word: currentCard.spanish,
                   image_url: currentCard.image,
+                  is_ai_generated: currentCard.is_ai_generated,
                   user_id: '',
                   created_at: '',
                   updated_at: ''
