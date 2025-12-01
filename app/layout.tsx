@@ -52,6 +52,11 @@ export default function RootLayout({
                 // Show splash background immediately
                 if (!sessionStorage.getItem('memzy_splash_done')) {
                   document.documentElement.classList.add('splash-active');
+                  // Failsafe: remove splash after 8 seconds max in case React fails
+                  setTimeout(function() {
+                    document.documentElement.classList.remove('splash-active');
+                    sessionStorage.setItem('memzy_splash_done', 'true');
+                  }, 8000);
                 }
                 
                 const theme = localStorage.getItem('theme');
@@ -60,7 +65,10 @@ export default function RootLayout({
                 } else {
                   document.documentElement.classList.remove('dark');
                 }
-              } catch (e) {}
+              } catch (e) {
+                // On any error, ensure content is visible
+                document.documentElement.classList.remove('splash-active');
+              }
             `,
           }}
         />
