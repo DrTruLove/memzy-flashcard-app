@@ -67,15 +67,15 @@ export default function RootLayout({
       </head>
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
         <SplashScreen />
-        <SubscriptionProvider>
-          <DecksProvider>
-            <LanguageProvider>
+        <LanguageProvider>
+          <SubscriptionProvider>
+            <DecksProvider>
               <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
               <UpgradeModal />
               <Analytics />
-            </LanguageProvider>
-          </DecksProvider>
-        </SubscriptionProvider>
+            </DecksProvider>
+          </SubscriptionProvider>
+        </LanguageProvider>
       </body>
     </html>
   )
