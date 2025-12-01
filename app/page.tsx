@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import Image from "next/image"
-import { ChevronRight, Upload, Camera, X, Loader2, Plus, Check, Save, Trash2, Download, Volume2, Settings, BookOpen, Sparkles, ImageIcon, Pencil, Heart } from "lucide-react"
+import { ChevronRight, Upload, Camera, X, Loader2, Plus, Check, Save, Trash2, Download, Volume2, Settings, BookOpen, Sparkles, ImageIcon, Pencil, Heart, Crown } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { createFlashcard, createDeck, addCardToDecks, deleteFlashcard, addCardToFavorites, removeCardFromFavorites, isCardInFavorites } from "@/lib/database"
 import { useDecks } from "@/lib/decks-context"
@@ -19,6 +19,8 @@ import { supabase } from "@/lib/supabase"
 import type { User } from "@supabase/supabase-js"
 import { DownloadCardsDialog } from "@/components/print-cards-dialog"
 import { useLanguage } from "@/lib/language-context"
+import { useSubscription } from "@/lib/subscription-context"
+import { FreeUsageIndicator, UpgradeRequiredBadge } from "@/components/upgrade-modal"
 import AiBadge from "@/components/ai-badge"
 import MemzyLogo from "@/components/memzy-logo"
 import { ProfileDropdown } from "@/components/profile-dropdown"
@@ -45,6 +47,19 @@ export default function MemzyPage() {
   const router = useRouter()
   const { primaryLanguage } = useLanguage()
   const { decks: contextDecks, mutate: mutateDecks } = useDecks()
+  
+  // FREE LIMIT — SUBSCRIPTION HOOK
+  const { 
+    isFreeUser, 
+    canCreateCard, 
+    incrementCreatedCards,
+    canUseFavorites,
+    canCreateDeck,
+    incrementDecks,
+    setShowUpgradeModal,
+    setUpgradeReason,
+    getRemainingFreeCards,
+  } = useSubscription()
   
   // Translation strings
   const t = {
@@ -612,6 +627,15 @@ export default function MemzyPage() {
       event.stopPropagation()
     }
 
+    // FREE LIMIT — REQUIRE PRO UPGRADE for Favorites
+    if (!canUseFavorites()) {
+      setUpgradeReason(primaryLanguage === 'es' 
+        ? 'Favoritos es una función Pro. ¡Actualiza para guardar tus tarjetas favoritas!'
+        : 'Favorites is a Pro feature. Upgrade to save your favorite cards!')
+      setShowUpgradeModal(true)
+      return
+    }
+
     // Check if user is signed in
     if (!user) {
       alert(primaryLanguage === 'es' 
@@ -671,6 +695,15 @@ export default function MemzyPage() {
     // Stop event propagation to prevent card flip
     if (event) {
       event.stopPropagation()
+    }
+
+    // FREE LIMIT — REQUIRE PRO UPGRADE for Favorites
+    if (!canUseFavorites()) {
+      setUpgradeReason(primaryLanguage === 'es' 
+        ? 'Favoritos es una función Pro. ¡Actualiza para guardar tus tarjetas favoritas!'
+        : 'Favorites is a Pro feature. Upgrade to save your favorite cards!')
+      setShowUpgradeModal(true)
+      return
     }
 
     // Check if user is signed in
@@ -744,14 +777,34 @@ export default function MemzyPage() {
   }
 
   const handleCreateNewDeck = () => {
+    // FREE LIMIT — REQUIRE PRO UPGRADE for multiple decks
+    if (!canCreateDeck()) {
+      setUpgradeReason(primaryLanguage === 'es' 
+        ? 'Los usuarios gratis solo pueden tener 1 mazo. ¡Actualiza a Pro para mazos ilimitados!'
+        : 'Free users can only have 1 deck. Upgrade to Pro for unlimited decks!')
+      setShowUpgradeModal(true)
+      return
+    }
     setIsCreatingDeck(true)
   }
 
   const handleSaveNewDeck = async () => {
     if (newDeckName.trim()) {
+      // FREE LIMIT — REQUIRE PRO UPGRADE for multiple decks
+      if (!canCreateDeck()) {
+        setUpgradeReason(primaryLanguage === 'es' 
+          ? 'Los usuarios gratis solo pueden tener 1 mazo. ¡Actualiza a Pro para mazos ilimitados!'
+          : 'Free users can only have 1 deck. Upgrade to Pro for unlimited decks!')
+        setShowUpgradeModal(true)
+        return
+      }
+      
       try {
         const deck = await createDeck(newDeckName)
         if (deck) {
+          // FREE LIMIT — INCREMENT DECK COUNT
+          await incrementDecks()
+          
           // Add to user decks and select it
           setUserDecks(prev => [...prev, { id: deck.id, title: deck.name, isSample: false }])
           setSelectedDecks(prev => [...prev, deck.id])
@@ -973,6 +1026,16 @@ export default function MemzyPage() {
       return
     }
 
+    // FREE LIMIT — REQUIRE PRO UPGRADE
+    // Check if user can create more cards before analyzing
+    if (!canCreateCard()) {
+      setUpgradeReason(primaryLanguage === 'es' 
+        ? 'Has alcanzado el límite de 8 tarjetas AI gratis. ¡Actualiza a Pro para tarjetas ilimitadas!'
+        : 'You\'ve reached the free limit of 8 AI cards. Upgrade to Pro for unlimited cards!')
+      setShowUpgradeModal(true)
+      return
+    }
+
     // Trigger gem animation
     setShowGems(true)
 
@@ -1044,6 +1107,9 @@ export default function MemzyPage() {
       setSpanishWord(data.spanishTranslation)
       setShowGems(false)
       setShowResult(true)
+      
+      // FREE LIMIT — INCREMENT CARD COUNT on successful analysis
+      await incrementCreatedCards()
       
       // Extra verification log
       setTimeout(() => {

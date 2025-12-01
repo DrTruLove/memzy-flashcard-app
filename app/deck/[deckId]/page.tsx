@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { FloatingNav } from "@/components/floating-nav"
 import Image from "next/image"
-import { ChevronRight, Save, ImageIcon, Pencil, Plus, Upload, Camera, X, Loader2, Check, Download, Trash2, ChevronLeft, Volume2, Heart } from "lucide-react"
+import { ChevronRight, Save, ImageIcon, Pencil, Plus, Upload, Camera, X, Loader2, Check, Download, Trash2, ChevronLeft, Volume2, Heart, Crown } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import { getDeckWithCards, createFlashcard, createDeck, addCardToDecks, removeCardFromDeck, deleteFlashcard, updateFlashcardImage, getSampleCardCustomizations, saveSampleCardCustomization, addCardToFavorites, removeCardFromFavorites, isCardInFavorites, deleteDeck, moveCardToUncategorized, copySampleCardToUncategorized, updateDeckName } from "@/lib/database"
 import type { DeckWithCards } from "@/lib/database"
 import { useDecks } from "@/lib/decks-context"
+import { useSubscription } from "@/lib/subscription-context"
 import MemzyLogo from "@/components/memzy-logo"
 import { supabase } from "@/lib/supabase"
 import { DownloadCardsDialog } from "@/components/print-cards-dialog"
@@ -179,6 +180,17 @@ export default function DeckPage({ params }: { params: { deckId: string } }) {
     'Body Parts': primaryLanguage === 'es' ? 'Partes del Cuerpo' : 'Body Parts',
     'Colors & Shapes': primaryLanguage === 'es' ? 'Colores y Formas' : 'Colors & Shapes',
   }
+  
+  // FREE LIMIT — SUBSCRIPTION HOOK
+  const { 
+    canUseFavorites,
+    canCreateCard,
+    incrementCreatedCards,
+    canCreateDeck,
+    incrementDecks,
+    setShowUpgradeModal,
+    setUpgradeReason,
+  } = useSubscription()
   
   const [currentCardIndex, setCurrentCardIndex] = useState(0)
   const [isFlipped, setIsFlipped] = useState(false)
@@ -1143,6 +1155,15 @@ export default function DeckPage({ params }: { params: { deckId: string } }) {
   }
 
   const handleFavorite = async () => {
+    // FREE LIMIT — REQUIRE PRO UPGRADE for Favorites
+    if (!canUseFavorites()) {
+      setUpgradeReason(primaryLanguage === 'es' 
+        ? 'Favoritos es una función Pro. ¡Actualiza para guardar tus tarjetas favoritas!'
+        : 'Favorites is a Pro feature. Upgrade to save your favorite cards!')
+      setShowUpgradeModal(true)
+      return
+    }
+    
     // Check if user is signed in
     if (!user) {
       // Show sign-in prompt

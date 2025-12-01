@@ -5,13 +5,14 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
-import { Download, Loader2, ChevronDown } from "lucide-react"
+import { Download, Loader2, ChevronDown, Crown } from "lucide-react"
 import { getDeckWithCards } from "@/lib/database"
 import { useDecks } from "@/lib/decks-context"
 import type { DeckWithCards, Flashcard } from "@/lib/database"
 import Image from "next/image"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { useLanguage } from "@/lib/language-context"
+import { useSubscription } from "@/lib/subscription-context"
 import { Capacitor } from '@capacitor/core'
 import { Filesystem, Directory } from '@capacitor/filesystem'
 import { Share } from '@capacitor/share'
@@ -48,6 +49,17 @@ interface DeckWithAllCards extends Deck {
 export function DownloadCardsDialog({ open, onOpenChange, initialSelectedCard, initialDeckId, initialDeckName }: DownloadCardsDialogProps) {
   const { primaryLanguage } = useLanguage()
   const { decks: contextDecks } = useDecks()
+  
+  // FREE LIMIT — SUBSCRIPTION HOOK for export gating
+  const { 
+    canExport, 
+    incrementExports, 
+    setShowUpgradeModal, 
+    setUpgradeReason,
+    isFreeUser,
+    usage,
+    freeExportLimit,
+  } = useSubscription()
   
   // Translation strings
   const t = {
@@ -294,12 +306,25 @@ export function DownloadCardsDialog({ open, onOpenChange, initialSelectedCard, i
       return
     }
 
+    // FREE LIMIT — REQUIRE PRO UPGRADE for multiple downloads
+    if (!canExport()) {
+      setUpgradeReason(primaryLanguage === 'es' 
+        ? 'Ya usaste tu descarga gratis. ¡Actualiza a Pro para descargas ilimitadas!'
+        : 'You\'ve used your free download. Upgrade to Pro for unlimited downloads!')
+      setShowUpgradeModal(true)
+      onOpenChange(false) // Close the dialog
+      return
+    }
+
     setIsDownloading(true)
 
     try {
       const selectedCardData = Array.from(selectedCards.values())
       
       await downloadAsJPG(selectedCardData)
+      
+      // FREE LIMIT — INCREMENT EXPORT COUNT on successful download
+      await incrementExports()
       
     } catch (error) {
       console.error('Download error:', error)
@@ -608,6 +633,23 @@ export function DownloadCardsDialog({ open, onOpenChange, initialSelectedCard, i
               ? 'Selecciona hasta 8 tarjetas para descargar como JPG'
               : 'Select up to 8 cards to download as JPG'}
           </p>
+
+          {/* FREE LIMIT — Show remaining exports for free users */}
+          {isFreeUser && (
+            <div className="flex items-center justify-between bg-purple-50 dark:bg-purple-950/30 rounded-lg p-2">
+              <span className="text-xs text-purple-700 dark:text-purple-400">
+                {primaryLanguage === 'es' 
+                  ? `Descargas gratis: ${freeExportLimit - usage.exportsUsed}/${freeExportLimit} restantes`
+                  : `Free downloads: ${freeExportLimit - usage.exportsUsed}/${freeExportLimit} remaining`}
+              </span>
+              {usage.exportsUsed >= freeExportLimit && (
+                <span className="inline-flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 font-medium">
+                  <Crown className="w-3 h-3" />
+                  {primaryLanguage === 'es' ? 'Actualiza a Pro' : 'Upgrade to Pro'}
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Action Buttons - Moved to Top */}
           <div className="flex gap-3">

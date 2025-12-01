@@ -6,10 +6,12 @@ import { Analytics } from "@vercel/analytics/next"
 import { Suspense } from "react"
 import { LanguageProvider } from "@/lib/language-context"
 import { DecksProvider } from "@/lib/decks-context"
+import { SubscriptionProvider } from "@/lib/subscription-context"
 import dynamic from "next/dynamic"
 import "./globals.css"
 
 const SplashScreen = dynamic(() => import("@/components/splash-screen").then(mod => ({ default: mod.SplashScreen })), { ssr: false })
+const UpgradeModal = dynamic(() => import("@/components/upgrade-modal").then(mod => ({ default: mod.UpgradeModal })), { ssr: false })
 
 export const metadata: Metadata = {
   title: "Memzy - AI Flashcard Creator",
@@ -65,12 +67,15 @@ export default function RootLayout({
       </head>
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
         <SplashScreen />
-        <DecksProvider>
-          <LanguageProvider>
-            <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
-            <Analytics />
-          </LanguageProvider>
-        </DecksProvider>
+        <SubscriptionProvider>
+          <DecksProvider>
+            <LanguageProvider>
+              <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
+              <UpgradeModal />
+              <Analytics />
+            </LanguageProvider>
+          </DecksProvider>
+        </SubscriptionProvider>
       </body>
     </html>
   )
