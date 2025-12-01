@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Memzy',
   webDir: 'out',
   server: {
-    url: 'http://localhost:3001',
+    url: 'https://memzy-flashcard-app.vercel.app',
     cleartext: true
   }
 };
