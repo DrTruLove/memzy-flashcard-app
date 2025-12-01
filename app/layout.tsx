@@ -34,47 +34,25 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Immediate splash background - prevents flash of content */}
-        <style dangerouslySetInnerHTML={{
-          __html: `
-            html.splash-active body > *:not(.splash-screen) {
-              visibility: hidden !important;
-            }
-            html.splash-active {
-              background-color: #8B2FFB !important;
-            }
-          `
-        }} />
+        {/* Theme script only - splash screen disabled */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
               try {
-                // Show splash background immediately
-                if (!sessionStorage.getItem('memzy_splash_done')) {
-                  document.documentElement.classList.add('splash-active');
-                  // Failsafe: remove splash after 8 seconds max in case React fails
-                  setTimeout(function() {
-                    document.documentElement.classList.remove('splash-active');
-                    sessionStorage.setItem('memzy_splash_done', 'true');
-                  }, 8000);
-                }
-                
                 const theme = localStorage.getItem('theme');
                 if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
                   document.documentElement.classList.add('dark');
                 } else {
                   document.documentElement.classList.remove('dark');
                 }
-              } catch (e) {
-                // On any error, ensure content is visible
-                document.documentElement.classList.remove('splash-active');
-              }
+              } catch (e) {}
             `,
           }}
         />
       </head>
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
-        <SplashScreen />
+        {/* SplashScreen temporarily disabled for debugging */}
+        {/* <SplashScreen /> */}
         <LanguageProvider>
           <SubscriptionProvider>
             <DecksProvider>
