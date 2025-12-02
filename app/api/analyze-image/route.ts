@@ -57,15 +57,18 @@ export async function POST(request: Request) {
         const genAI = new GoogleGenerativeAI(geminiKey)
         const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" })
 
-        const prompt = `You are a professional Spanish translator specializing in educational flashcards. 
-          
-Translate the following English word or phrase to Spanish. Provide ONLY the Spanish translation, nothing else.
+        const prompt = `You are a professional Spanish translator specializing in educational flashcards for Latin American Spanish.
 
-Rules:
-- If it's a single word, provide the single Spanish word
-- If it's a phrase, provide the Spanish phrase
-- Use proper Spanish grammar and capitalization
-- Do not include explanations, articles (unless part of the phrase), or additional text
+Translate the following English word to Spanish. Provide ONLY the Spanish translation, nothing else.
+
+IMPORTANT RULES:
+- Treat compound words as a single concept (e.g., "Laptop" = "Computadora portátil" or "Portátil", NOT "Laptop")
+- Use the most common Latin American Spanish translation
+- For writing instruments: pen = "Bolígrafo", pencil = "Lápiz"
+- For technology: laptop = "Portátil" or "Computadora portátil", computer = "Computadora"
+- Do NOT use English loanwords if a proper Spanish word exists
+- Use proper Spanish capitalization
+- Do not include explanations, articles, or additional text
 
 English: ${englishWord}
 Spanish:`

@@ -29,7 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Camera as CapacitorCamera, CameraResultType, CameraSource } from '@capacitor/camera'
+import { Camera as CapacitorCamera, CameraResultType, CameraSource, CameraDirection } from '@capacitor/camera'
 import { GemLoader } from "@/components/gem-loader"
 import { Capacitor } from '@capacitor/core'
 
@@ -348,13 +348,15 @@ export default function DeckPage({ params }: { params: { deckId: string } }) {
   // Handle deleting the empty deck - defined early for use in empty state render
   const handleDeleteEmptyDeck = async () => {
     setShowKeepDeckDialog(false)
+    // Navigate immediately for faster feedback
+    router.push('/my-decks')
+    
+    // Delete in background
     const success = await deleteDeck(deckId)
     if (success) {
       mutateDecks()
-      router.push('/my-decks')
-    } else {
-      alert('Failed to delete deck. Please try again.')
     }
+    // If it fails, the deck will still appear when they return to my-decks
   }
 
   // Handle saving edited deck name
@@ -415,7 +417,7 @@ export default function DeckPage({ params }: { params: { deckId: string } }) {
                 ? 'Haz clic en + para agregar tarjetas a este mazo' 
                 : 'Click + to add cards to this deck'}
             </p>
-            <Button onClick={() => router.push('/')} className="bg-purple-600 hover:bg-purple-700">
+            <Button onClick={() => router.push('/?action=create')} className="bg-purple-600 hover:bg-purple-700">
               <Plus className="h-4 w-4 mr-2" />
               {primaryLanguage === 'es' ? 'Crear Tarjeta' : 'Create Card'}
             </Button>
@@ -979,6 +981,8 @@ export default function DeckPage({ params }: { params: { deckId: string } }) {
           resultType: CameraResultType.DataUrl,
           source: CameraSource.Camera,
           quality: 90,
+          correctOrientation: true,
+          direction: CameraDirection.Rear // Prefer back camera to avoid mirror issues
         })
         
         if (image.dataUrl) {

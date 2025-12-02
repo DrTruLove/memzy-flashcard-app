@@ -47,7 +47,7 @@ export const PLAN_PRICING = {
 
 // FREE PLAN LIMITS
 export const FREE_LIMITS = {
-  MAX_CARDS: 8,
+  MAX_CARDS: 12,
   MAX_EXPORTS: 1,
   MAX_DECKS: 1,
 } as const
@@ -130,10 +130,29 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [upgradeReason, setUpgradeReason] = useState('')
+  const [actualDeckCount, setActualDeckCount] = useState(0)
   
   // Derived state
   const isFreeUser = plan === SUBSCRIPTION_PLANS.FREE
   const isProUser = !isFreeUser
+  
+  // Fetch actual deck count from database
+  const fetchActualDeckCount = useCallback(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { count } = await supabase
+          .from('decks')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('is_sample', false) // Only count user-created decks, not samples
+        
+        setActualDeckCount(count || 0)
+      }
+    } catch (error) {
+      console.log('Failed to fetch deck count:', error)
+    }
+  }, [])
   
   // ===========================
   // LOAD SUBSCRIPTION STATE
@@ -172,6 +191,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
           await syncWithServer(user.id)
+          await fetchActualDeckCount()
         }
       } catch (error) {
         console.error('Error loading subscription state:', error)
@@ -181,7 +201,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     }
     
     loadSubscriptionState()
-  }, [])
+  }, [fetchActualDeckCount])
   
   // ===========================
   // SYNC WITH SERVER
@@ -296,8 +316,9 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const canCreateDeck = useCallback(() => {
     // FREE LIMIT — REQUIRE PRO UPGRADE
     if (isProUser) return true
-    return usage.decksCreated < FREE_LIMITS.MAX_DECKS
-  }, [isProUser, usage.decksCreated])
+    // Also check actualDeckCount to prevent bypassing the limit
+    return usage.decksCreated < FREE_LIMITS.MAX_DECKS && actualDeckCount < FREE_LIMITS.MAX_DECKS
+  }, [isProUser, usage.decksCreated, actualDeckCount])
   
   const canUseFavorites = useCallback(() => {
     // FREE LIMIT — REQUIRE PRO UPGRADE
@@ -311,7 +332,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const incrementCreatedCards = useCallback(async (): Promise<boolean> => {
     // FREE LIMIT — REQUIRE PRO UPGRADE
     if (!canCreateCard()) {
-      setUpgradeReason('You\'ve reached the free limit of 8 AI cards. Upgrade to Pro for unlimited cards!')
+      setUpgradeReason('You\'ve reached the free limit of 12 AI cards. Upgrade to Pro for unlimited cards!')
       setShowUpgradeModal(true)
       return false
     }
@@ -351,10 +372,12 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     if (isFreeUser) {
       const newUsage = { ...usage, decksCreated: usage.decksCreated + 1 }
       await saveUsage(newUsage)
+      // Also refresh actual deck count
+      await fetchActualDeckCount()
     }
     
     return true
-  }, [canCreateDeck, isFreeUser, usage, saveUsage])
+  }, [canCreateDeck, isFreeUser, usage, saveUsage, fetchActualDeckCount])
   
   // ===========================
   // UPGRADE FLOW (PLACEHOLDER)

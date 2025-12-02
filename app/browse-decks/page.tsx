@@ -149,26 +149,30 @@ export default function BrowseDecksPage() {
   const handleFinalDeleteConfirm = async () => {
     if (!deckToDelete) return
     
-    if (deckToDelete.isSampleDeck) {
+    const deckIdToDelete = deckToDelete.id
+    const wasSampleDeck = deckToDelete.isSampleDeck
+    
+    // Close dialog immediately for faster feedback
+    setConfirmDeleteDialogOpen(false)
+    setDeckToDelete(null)
+    
+    if (wasSampleDeck) {
       // For sample decks, hide them in localStorage
-      const newHidden = [...hiddenSampleDecks, deckToDelete.id]
+      const newHidden = [...hiddenSampleDecks, deckIdToDelete]
       setHiddenSampleDecks(newHidden)
       if (user) {
         localStorage.setItem(`hiddenSampleDecks_${user.id}`, JSON.stringify(newHidden))
       }
     } else {
-      // For user decks, delete from database
-      const success = await deleteDeck(deckToDelete.id)
+      // For user decks - delete in background, then refresh
+      const success = await deleteDeck(deckIdToDelete)
       if (success) {
-        // Trigger SWR revalidation to refresh the deck list
         mutateDecks()
       } else {
         alert(primaryLanguage === 'es' ? 'Error al eliminar el mazo' : 'Failed to delete deck')
+        mutateDecks() // Refresh anyway to show current state
       }
     }
-    
-    setConfirmDeleteDialogOpen(false)
-    setDeckToDelete(null)
   }
 
   // Filter out hidden sample decks

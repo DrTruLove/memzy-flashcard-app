@@ -83,14 +83,17 @@ export default function MyDecksPage() {
   const handleDeleteConfirm = async () => {
     if (!deckToDelete) return
 
-    const success = await deleteDeck(deckToDelete.id)
-    if (success) {
-      // Remove from local state
-      setUserDecks(prev => prev.filter(d => d.id !== deckToDelete.id))
-      setDeleteDialogOpen(false)
-      setDeckToDelete(null)
-    } else {
-      alert('Failed to delete deck. Please try again.')
+    // Optimistic UI update - remove immediately for faster feedback
+    const deckIdToDelete = deckToDelete.id
+    setUserDecks(prev => prev.filter(d => d.id !== deckIdToDelete))
+    setDeleteDialogOpen(false)
+    setDeckToDelete(null)
+
+    // Then actually delete in background
+    const success = await deleteDeck(deckIdToDelete)
+    if (!success) {
+      // If delete failed, show error (deck was already removed from UI)
+      alert('Failed to delete deck. Please refresh the page.')
     }
   }
 

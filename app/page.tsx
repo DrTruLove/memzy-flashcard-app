@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import Image from "next/image"
-import { ChevronRight, Upload, Camera, X, Loader2, Plus, Check, Save, Trash2, Download, Volume2, Settings, BookOpen, Sparkles, ImageIcon, Pencil, Heart, Crown } from "lucide-react"
+import { ChevronRight, Upload, Camera, X, Loader2, Plus, Check, Save, Trash2, Download, Volume2, Settings, BookOpen, Sparkles, ImageIcon, Pencil, Heart, Crown, FlipHorizontal2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { createFlashcard, createDeck, addCardToDecks, deleteFlashcard, addCardToFavorites, removeCardFromFavorites, isCardInFavorites } from "@/lib/database"
 import { useDecks } from "@/lib/decks-context"
@@ -27,13 +27,14 @@ import { ProfileDropdown } from "@/components/profile-dropdown"
 import { GemLoader } from "@/components/gem-loader"
 
 // Dynamically import Capacitor modules to avoid SSR issues
-let CapacitorCamera: any, CameraResultType: any, CameraSource: any, Capacitor: any, TextToSpeech: any
+let CapacitorCamera: any, CameraResultType: any, CameraSource: any, CameraDirection: any, Capacitor: any, TextToSpeech: any
 
 if (typeof window !== 'undefined') {
   import('@capacitor/camera').then(module => {
     CapacitorCamera = module.Camera
     CameraResultType = module.CameraResultType
     CameraSource = module.CameraSource
+    CameraDirection = module.CameraDirection
   })
   import('@capacitor/core').then(module => {
     Capacitor = module.Capacitor
@@ -196,6 +197,7 @@ export default function MemzyPage() {
   const [resultFavoritingAction, setResultFavoritingAction] = useState<'add' | 'remove'>('add')
   const [pendingAction, setPendingAction] = useState<'camera' | 'upload' | null>(null)
   const [userLoaded, setUserLoaded] = useState(false)
+  const [showReplaceOptions, setShowReplaceOptions] = useState(false)
 
   // Daily rotating flashcards pool
   const dailyCards = [
@@ -314,6 +316,10 @@ export default function MemzyPage() {
         // Remove query param and store pending action
         window.history.replaceState({}, '', '/')
         setPendingAction('upload')
+      } else if (action === 'create') {
+        // Remove query param and show image options dialog
+        window.history.replaceState({}, '', '/')
+        setShowReplaceOptions(true)
       }
     }
 
@@ -464,7 +470,9 @@ export default function MemzyPage() {
           quality: 90,
           allowEditing: false,
           resultType: CameraResultType.DataUrl,
-          source: CameraSource.Camera
+          source: CameraSource.Camera,
+          correctOrientation: true,
+          direction: CameraDirection?.Rear // Prefer back camera to avoid mirror issues
         })
         
         if (image.dataUrl) {
@@ -528,6 +536,36 @@ export default function MemzyPage() {
           cardPreviewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
         }, 100)
       }
+    }
+  }
+
+  // Flip/mirror image horizontally (for selfie camera fix)
+  const flipImageHorizontally = (imageDataUrl: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = document.createElement('img')
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        canvas.width = img.width
+        canvas.height = img.height
+        const ctx = canvas.getContext('2d')
+        if (ctx) {
+          // Flip horizontally
+          ctx.translate(canvas.width, 0)
+          ctx.scale(-1, 1)
+          ctx.drawImage(img, 0, 0)
+          resolve(canvas.toDataURL('image/jpeg', 0.9))
+        } else {
+          resolve(imageDataUrl)
+        }
+      }
+      img.src = imageDataUrl
+    })
+  }
+
+  const handleFlipImage = async () => {
+    if (imagePreview) {
+      const flippedImage = await flipImageHorizontally(imagePreview)
+      setImagePreview(flippedImage)
     }
   }
 
@@ -1030,8 +1068,8 @@ export default function MemzyPage() {
     // Check if user can create more cards before analyzing
     if (!canCreateCard()) {
       setUpgradeReason(primaryLanguage === 'es' 
-        ? 'Has alcanzado el límite de 8 tarjetas AI gratis. ¡Actualiza a Pro para tarjetas ilimitadas!'
-        : 'You\'ve reached the free limit of 8 AI cards. Upgrade to Pro for unlimited cards!')
+        ? 'Has alcanzado el límite de 12 tarjetas AI gratis. ¡Actualiza a Pro para tarjetas ilimitadas!'
+        : 'You\'ve reached the free limit of 12 AI cards. Upgrade to Pro for unlimited cards!')
       setShowUpgradeModal(true)
       return
     }
@@ -1309,8 +1347,19 @@ export default function MemzyPage() {
 
                   {/* Image Preview */}
                   {imagePreview && (
-                    <div ref={cardPreviewRef} className="relative aspect-video w-full overflow-hidden rounded-lg border border-border">
-                      <Image src={imagePreview} alt="Preview" fill className="object-contain" />
+                    <div className="space-y-2">
+                      <div ref={cardPreviewRef} className="relative aspect-video w-full overflow-hidden rounded-lg border border-border">
+                        <Image src={imagePreview} alt="Preview" fill className="object-contain" />
+                      </div>
+                      <Button
+                        onClick={handleFlipImage}
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-muted-foreground"
+                      >
+                        <FlipHorizontal2 className="mr-2 h-4 w-4" />
+                        {primaryLanguage === 'es' ? 'Voltear Imagen (para selfies)' : 'Flip Image (for selfies)'}
+                      </Button>
                     </div>
                   )}
 
@@ -1484,34 +1533,14 @@ export default function MemzyPage() {
                   >
                     <Plus className="h-5 w-5" />
                   </Button>
-                  <label htmlFor="replace-result-image">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      id="replace-result-image"
-                      className="hidden"
-                      onChange={(e) => {
-                        if (e.target.files && e.target.files[0]) {
-                          handleImageUpload(e)
-                          setShowResult(false)
-                          setIsResultCardFlipped(false)
-                          setEnglishWord("")
-                          setSpanishWord("")
-                          e.target.value = ""
-                        }
-                      }}
-                    />
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-10 w-10 bg-white shadow-lg hover:bg-gray-50 cursor-pointer"
-                      asChild
-                    >
-                      <span>
-                        <ImageIcon className="h-5 w-5" />
-                      </span>
-                    </Button>
-                  </label>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10 bg-white shadow-lg hover:bg-gray-50"
+                    onClick={() => setShowReplaceOptions(true)}
+                  >
+                    <ImageIcon className="h-5 w-5" />
+                  </Button>
                   <Button
                     variant="outline"
                     size="icon"
@@ -1735,6 +1764,69 @@ export default function MemzyPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Image Options Dialog */}
+      <Dialog open={showReplaceOptions} onOpenChange={setShowReplaceOptions}>
+        <DialogContent className="max-w-md">
+          <DialogTitle>{primaryLanguage === 'es' ? 'Añadir Imagen' : 'Add Image'}</DialogTitle>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {primaryLanguage === 'es' ? 'Elige cómo quieres añadir la imagen' : 'Choose how you want to add the image'}
+            </p>
+            
+            <div className="grid grid-cols-2 gap-3">
+              {/* Upload from files */}
+              <div className="relative">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      handleImageUpload(e)
+                      setShowResult(false)
+                      setIsResultCardFlipped(false)
+                      setEnglishWord("")
+                      setSpanishWord("")
+                      setShowReplaceOptions(false)
+                      e.target.value = ""
+                    }
+                  }}
+                  className="hidden"
+                  id="replace-image-upload"
+                />
+                <label
+                  htmlFor="replace-image-upload"
+                  className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/50 px-6 py-8 transition-colors hover:bg-muted"
+                >
+                  <Upload className="h-8 w-8 text-muted-foreground" />
+                  <p className="mt-2 text-center text-xs text-muted-foreground">
+                    {t.uploadImage}
+                  </p>
+                </label>
+              </div>
+
+              {/* Capture from camera */}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowReplaceOptions(false)
+                  openCamera()
+                }}
+                className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/50 px-6 py-8 transition-colors hover:bg-muted"
+              >
+                <Camera className="h-8 w-8 text-muted-foreground" />
+                <p className="mt-2 text-center text-xs text-muted-foreground">
+                  {t.takePhoto}
+                </p>
+              </button>
+            </div>
+
+            <Button onClick={() => setShowReplaceOptions(false)} variant="outline" className="w-full">
+              {t.cancel}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Camera Dialog */}
       <Dialog open={showCamera} onOpenChange={closeCamera}>
         <DialogContent className="max-w-2xl">
@@ -1837,14 +1929,18 @@ export default function MemzyPage() {
                 {availableDecks.map((deck) => (
                   <div
                     key={deck.id}
-                    className="flex items-center space-x-3 rounded-lg border border-border p-3 hover:bg-accent cursor-pointer"
-                    onClick={() => handleToggleDeck(deck.id)}
+                    className="flex items-center space-x-3 rounded-lg border border-border p-3 hover:bg-accent cursor-pointer touch-manipulation"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleToggleDeck(deck.id);
+                    }}
                   >
                     <Checkbox
                       checked={selectedDecks.includes(deck.id)}
-                      onCheckedChange={() => handleToggleDeck(deck.id)}
+                      className="pointer-events-none"
                     />
-                    <Label className="flex-1 cursor-pointer">{deck.title}</Label>
+                    <Label className="flex-1 cursor-pointer pointer-events-none">{deck.title}</Label>
                   </div>
                 ))}
               </div>
