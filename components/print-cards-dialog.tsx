@@ -37,7 +37,6 @@ const sampleDecks = [
   { id: "common-objects", name: "Common Objects", nameEs: "Objetos Comunes", isUserDeck: false },
   { id: "animals", name: "Animals", nameEs: "Animales", isUserDeck: false },
   { id: "food-drinks", name: "Food & Drinks", nameEs: "Comida y Bebidas", isUserDeck: false },
-  { id: "body-parts", name: "Body Parts", nameEs: "Partes del Cuerpo", isUserDeck: false },
   { id: "colors-shapes", name: "Colors & Shapes", nameEs: "Colores y Formas", isUserDeck: false },
 ]
 
@@ -214,23 +213,6 @@ export function DownloadCardsDialog({ open, onOpenChange, initialSelectedCard, i
           { english: "Fish", spanish: "Pescado", image: "/cooked-fish.jpg" },
           { english: "Salad", spanish: "Ensalada", image: "/fresh-salad.png" },
           { english: "Pizza", spanish: "Pizza", image: "/pizza-slice.png" },
-        ],
-      },
-      "body-parts": {
-        title: "Body Parts",
-        cards: [
-          { english: "Head", spanish: "Cabeza", image: "/body-head.jpg" },
-          { english: "Eye", spanish: "Ojo", image: "/body-eye.jpg" },
-          { english: "Nose", spanish: "Nariz", image: "/body-nose.jpg" },
-          { english: "Mouth", spanish: "Boca", image: "/body-mouth.jpg" },
-          { english: "Ear", spanish: "Oreja", image: "/body-ear.jpg" },
-          { english: "Hand", spanish: "Mano", image: "/body-hand.jpg" },
-          { english: "Foot", spanish: "Pie", image: "/body-foot.jpg" },
-          { english: "Leg", spanish: "Pierna", image: "/body-leg.jpg" },
-          { english: "Hair", spanish: "Cabello", image: "/body-hair.jpg" },
-          { english: "Teeth", spanish: "Dientes", image: "/body-teeth.jpg" },
-          { english: "Tongue", spanish: "Lengua", image: "/body-tongue.jpg" },
-          { english: "Neck", spanish: "Cuello", image: "/body-neck.jpg" },
         ],
       },
       "colors-shapes": {

@@ -54,15 +54,6 @@ const sampleDecks = [
     coverImage: "/delicious-food-and-beverages.jpg",
   },
   {
-    id: "body-parts",
-    title: "Body Parts",
-    titleEs: "Partes del Cuerpo",
-    description: "Learn body parts in Spanish",
-    descriptionEs: "Aprende las partes del cuerpo en español",
-    cardCount: 15,
-    coverImage: "/human-body-parts-diagram.jpg",
-  },
-  {
     id: "colors-shapes",
     title: "Colors & Shapes",
     titleEs: "Colores y Formas",

@@ -59,7 +59,7 @@ export default function TutorialPage() {
     features: [
       { icon: <BookOpen className="h-5 w-5" />, text: primaryLanguage === 'es' ? "Objetos Comunes" : "Common Objects" },
       { icon: <BookOpen className="h-5 w-5" />, text: primaryLanguage === 'es' ? "Animales" : "Animals" },
-      { icon: <BookOpen className="h-5 w-5" />, text: primaryLanguage === 'es' ? "Partes del Cuerpo" : "Body Parts" },
+      { icon: <BookOpen className="h-5 w-5" />, text: primaryLanguage === 'es' ? "Comida y Bebidas" : "Food & Drinks" },
       { icon: <BookOpen className="h-5 w-5" />, text: primaryLanguage === 'es' ? "Colores y Formas" : "Colors & Shapes" }
     ],
     color: "from-green-500 to-emerald-600"

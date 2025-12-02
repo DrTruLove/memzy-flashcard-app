@@ -101,11 +101,13 @@ export default function MyDecksPage() {
     <div className="min-h-screen bg-background pb-24">
       {/* Header */}
       <header className="border-b border-border bg-card">
-        <div className="container mx-auto px-4 py-4">
-          <Button variant="ghost" onClick={() => router.push("/")} className="gap-2">
-            <ArrowLeft className="h-4 w-4" />
-            Back to Home
-          </Button>
+        <div className="container mx-auto px-4 py-4 pt-safe">
+          <div className="mt-2">
+            <Button variant="ghost" onClick={() => router.push("/")} className="gap-2">
+              <ArrowLeft className="h-5 w-5" />
+              Back to Home
+            </Button>
+          </div>
         </div>
       </header>
 

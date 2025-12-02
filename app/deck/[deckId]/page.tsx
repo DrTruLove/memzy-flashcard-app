@@ -98,23 +98,6 @@ const deckData: Record<string, { title: string; cards: Array<{ english: string; 
       { english: "Pizza", spanish: "Pizza", image: "/pizza-slice.png" },
     ],
   },
-  "body-parts": {
-    title: "Body Parts",
-    cards: [
-      { english: "Head", spanish: "Cabeza", image: "/body-head.jpg" },
-      { english: "Eye", spanish: "Ojo", image: "/body-eye.jpg" },
-      { english: "Nose", spanish: "Nariz", image: "/body-nose.jpg" },
-      { english: "Mouth", spanish: "Boca", image: "/body-mouth.jpg" },
-      { english: "Ear", spanish: "Oreja", image: "/body-ear.jpg" },
-      { english: "Hand", spanish: "Mano", image: "/body-hand.jpg" },
-      { english: "Foot", spanish: "Pie", image: "/body-foot.jpg" },
-      { english: "Leg", spanish: "Pierna", image: "/body-leg.jpg" },
-      { english: "Hair", spanish: "Cabello", image: "/body-hair.jpg" },
-      { english: "Teeth", spanish: "Dientes", image: "/body-teeth.jpg" },
-      { english: "Tongue", spanish: "Lengua", image: "/body-tongue.jpg" },
-      { english: "Neck", spanish: "Cuello", image: "/body-neck.jpg" },
-    ],
-  },
   "colors-shapes": {
     title: "Colors & Shapes",
     cards: [
@@ -177,7 +160,6 @@ export default function DeckPage({ params }: { params: { deckId: string } }) {
     'Common Objects': primaryLanguage === 'es' ? 'Objetos Comunes' : 'Common Objects',
     'Animals': primaryLanguage === 'es' ? 'Animales' : 'Animals',
     'Food & Drinks': primaryLanguage === 'es' ? 'Comida y Bebidas' : 'Food & Drinks',
-    'Body Parts': primaryLanguage === 'es' ? 'Partes del Cuerpo' : 'Body Parts',
     'Colors & Shapes': primaryLanguage === 'es' ? 'Colores y Formas' : 'Colors & Shapes',
   }
   
@@ -398,12 +380,14 @@ export default function DeckPage({ params }: { params: { deckId: string } }) {
     return (
       <div className="min-h-screen bg-background pb-24">
         <header className="border-b border-border bg-card">
-          <div className="container mx-auto flex items-center gap-4 px-4 py-4">
-            <Button variant="ghost" onClick={() => router.back()} className="gap-2">
-              <ChevronLeft className="h-4 w-4" />
-              {primaryLanguage === 'es' ? 'Atrás' : 'Back'}
-            </Button>
-            <h1 className="text-xl font-bold text-foreground">{rawDeckName}</h1>
+          <div className="container mx-auto flex items-center gap-4 px-4 py-4 pt-safe">
+            <div className="mt-2">
+              <Button variant="ghost" onClick={() => router.back()} className="gap-2">
+                <ChevronLeft className="h-5 w-5" />
+                {primaryLanguage === 'es' ? 'Atrás' : 'Back'}
+              </Button>
+            </div>
+            <h1 className="text-xl font-bold text-foreground mt-2">{rawDeckName}</h1>
           </div>
         </header>
         <main className="container mx-auto px-4 py-8">

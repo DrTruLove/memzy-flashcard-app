@@ -40,7 +40,7 @@ export default function RootLayout({
             __html: `
               try {
                 const theme = localStorage.getItem('theme');
-                if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                if (theme === 'dark') {
                   document.documentElement.classList.add('dark');
                 } else {
                   document.documentElement.classList.remove('dark');
@@ -51,8 +51,7 @@ export default function RootLayout({
         />
       </head>
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
-        {/* SplashScreen temporarily disabled for debugging */}
-        {/* <SplashScreen /> */}
+        <SplashScreen />
         <LanguageProvider>
           <SubscriptionProvider>
             <DecksProvider>

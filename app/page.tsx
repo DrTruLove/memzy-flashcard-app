@@ -250,7 +250,6 @@ export default function MemzyPage() {
     { id: "common-objects", title: "Common Objects", isSample: true },
     { id: "animals", title: "Animals", isSample: true },
     { id: "food-drinks", title: "Food & Drinks", isSample: true },
-    { id: "body-parts", title: "Body Parts", isSample: true },
     { id: "colors-shapes", title: "Colors & Shapes", isSample: true },
   ]
 
