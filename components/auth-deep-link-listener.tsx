@@ -8,77 +8,135 @@
  * this listener intercepts the URL and redirects to the auth callback page.
  * 
  * How it works:
- * 1. Uses Capacitor's App plugin to listen for 'appUrlOpen' events
- * 2. When a memzy://auth/callback URL is detected, it extracts the tokens
- * 3. Navigates to /auth/callback with the tokens as query parameters
+ * 1. On cold start: Uses App.getLaunchUrl() to check if app was opened via deep link
+ * 2. On warm start: Uses App.addListener('appUrlOpen') to catch deep links when app is running
+ * 3. When a memzy://auth/callback URL is detected, it navigates to /auth/callback
  * 4. The callback page then completes the Supabase session
  * 
  * This component should be included in the root layout.
  */
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
-
-// Dynamically import Capacitor App plugin
-let CapacitorApp: any
+import { useEffect, useRef } from "react"
+import { useRouter, usePathname } from "next/navigation"
 
 export function AuthDeepLinkListener() {
   const router = useRouter()
+  const pathname = usePathname()
+  const hasHandledInitialUrl = useRef(false)
+
+  /**
+   * Process an auth callback URL and navigate to the callback page
+   */
+  const handleAuthUrl = (url: string) => {
+    console.log('[MemzyDeepLink] Processing URL:', url)
+    
+    if (!url.startsWith('memzy://auth/callback')) {
+      console.log('[MemzyDeepLink] Not an auth callback URL, ignoring')
+      return false
+    }
+
+    try {
+      // Parse the URL - replace custom scheme with https for URL parsing
+      const parsedUrl = new URL(url.replace('memzy://', 'https://memzy.app/'))
+      
+      console.log('[MemzyDeepLink] Parsed URL:', {
+        hash: parsedUrl.hash,
+        search: parsedUrl.search,
+        pathname: parsedUrl.pathname
+      })
+      
+      // Build the callback URL with hash and/or query params
+      let callbackUrl = '/auth/callback'
+      
+      // Supabase typically sends tokens in the hash fragment
+      if (parsedUrl.hash) {
+        callbackUrl += parsedUrl.hash
+      }
+      
+      // Sometimes tokens come as query params
+      if (parsedUrl.search) {
+        // If we already have a hash, append query params with &
+        if (parsedUrl.hash) {
+          callbackUrl += '&' + parsedUrl.search.substring(1)
+        } else {
+          callbackUrl += parsedUrl.search
+        }
+      }
+      
+      console.log('[MemzyDeepLink] Navigating to callback:', callbackUrl)
+      
+      // Use replace to avoid back button going to the deep link
+      router.replace(callbackUrl)
+      return true
+    } catch (error) {
+      console.error('[MemzyDeepLink] Error parsing URL:', error)
+      // On any error, navigate to login page
+      router.replace('/login')
+      return false
+    }
+  }
 
   useEffect(() => {
-    // Only run on client-side and in Capacitor environment
+    // Only run on client-side
     if (typeof window === 'undefined') return
 
-    const setupDeepLinkListener = async () => {
+    let cleanupListener: (() => void) | undefined
+
+    const setupDeepLinkHandling = async () => {
       try {
         // Dynamically import Capacitor App plugin
         const { App } = await import('@capacitor/app')
-        CapacitorApp = App
+        const { Capacitor } = await import('@capacitor/core')
+        
+        // Check if we're running in a native app
+        if (!Capacitor.isNativePlatform()) {
+          console.log('[MemzyDeepLink] Not a native platform, skipping deep link setup')
+          return
+        }
+        
+        console.log('[MemzyDeepLink] Setting up deep link handling on native platform')
 
-        // Listen for app URL open events (deep links)
-        const listener = await CapacitorApp.addListener('appUrlOpen', (event: { url: string }) => {
-          console.log('[AuthDeepLink] App opened with URL:', event.url)
+        // CRITICAL: Check if app was cold-started from a deep link
+        // This is necessary because appUrlOpen doesn't fire on cold start
+        if (!hasHandledInitialUrl.current) {
+          hasHandledInitialUrl.current = true
           
-          // Check if this is an auth callback URL
-          if (event.url.startsWith('memzy://auth/callback')) {
-            // Parse the URL to extract tokens
-            // The URL format is: memzy://auth/callback#access_token=...&refresh_token=...
-            // or memzy://auth/callback?access_token=...&refresh_token=...
-            
-            const url = new URL(event.url.replace('memzy://', 'https://memzy.app/'))
-            
-            // Get hash parameters (Supabase typically sends tokens in hash)
-            const hashParams = new URLSearchParams(url.hash.substring(1))
-            
-            // Build the callback URL with parameters
-            let callbackUrl = '/auth/callback'
-            
-            // If there's a hash, append it
-            if (url.hash) {
-              callbackUrl += url.hash
-            }
-            
-            // If there are query params, append them
-            if (url.search) {
-              callbackUrl += url.search
-            }
-            
-            console.log('[AuthDeepLink] Navigating to:', callbackUrl)
-            router.push(callbackUrl)
+          console.log('[MemzyDeepLink] Checking for launch URL (cold start)...')
+          const launchUrl = await App.getLaunchUrl()
+          
+          if (launchUrl && launchUrl.url) {
+            console.log('[MemzyDeepLink] App was launched with URL:', launchUrl.url)
+            handleAuthUrl(launchUrl.url)
+          } else {
+            console.log('[MemzyDeepLink] No launch URL found (normal app start)')
           }
+        }
+
+        // Listen for deep links when app is already running (warm start)
+        const listener = await App.addListener('appUrlOpen', (event: { url: string }) => {
+          console.log('[MemzyDeepLink] appUrlOpen event received:', event.url)
+          handleAuthUrl(event.url)
         })
 
-        // Store listener for cleanup
-        return () => {
+        cleanupListener = () => {
+          console.log('[MemzyDeepLink] Removing listener')
           listener.remove()
         }
+        
       } catch (error) {
         // Capacitor not available (running in web browser)
-        console.log('[AuthDeepLink] Capacitor App not available:', error)
+        console.log('[MemzyDeepLink] Capacitor not available:', error)
       }
     }
 
-    setupDeepLinkListener()
+    setupDeepLinkHandling()
+
+    // Cleanup on unmount
+    return () => {
+      if (cleanupListener) {
+        cleanupListener()
+      }
+    }
   }, [router])
 
   // This component doesn't render anything

@@ -469,11 +469,9 @@ export default function DeckPage({ params }: { params: { deckId: string } }) {
         })
       } catch (error) {
         console.error('[Audio] Native TTS error:', error)
-        const errorMsg = error instanceof Error ? error.message : String(error)
-        // Show helpful message for emulator
-        alert(primaryLanguage === 'es' 
-          ? 'El audio no funciona en el emulador de Android Studio. Prueba en un dispositivo físico.' 
-          : 'Audio doesn\'t work on Android Studio emulator. Try on a physical device.')
+        // Only log the error, don't show alert on physical devices
+        // The TTS might fail silently and that's okay
+        // The emulator error message was confusing users on real devices
       }
       return
     }
@@ -1265,8 +1263,20 @@ export default function DeckPage({ params }: { params: { deckId: string } }) {
   const canEditDeckName = !isSampleDeck && !isSpecialDeck && user
 
   return (
-    <div className="min-h-screen bg-background pb-20 pt-safe">
+    <div className="min-h-screen bg-background pb-20">
       <FloatingNav />
+
+      {/* Back Button Header */}
+      <header className="border-b border-border bg-card">
+        <div className="container mx-auto px-4 py-4 pt-safe">
+          <div className="mt-2">
+            <Button variant="ghost" onClick={() => router.push("/browse-decks")} className="gap-2">
+              <ChevronLeft className="h-5 w-5" />
+              {primaryLanguage === 'es' ? 'Ver Mazos' : 'Browse Decks'}
+            </Button>
+          </div>
+        </div>
+      </header>
 
       <main className="container mx-auto px-4 py-4">
         <div className="mx-auto max-w-4xl">

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { FloatingNav } from "@/components/floating-nav"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
-import { BookOpen, User, Download, Trash2 } from "lucide-react"
+import { BookOpen, User, Download, Trash2, ArrowLeft } from "lucide-react"
 import { useState, useEffect, useMemo } from "react"
 import { useDecks } from "@/lib/decks-context"
 import { supabase } from "@/lib/supabase"
@@ -175,6 +175,18 @@ export default function BrowseDecksPage() {
   return (
     <div className="min-h-screen bg-background pb-20">
       <FloatingNav />
+
+      {/* Back Button Header */}
+      <header className="border-b border-border bg-card">
+        <div className="container mx-auto px-4 py-4 pt-safe">
+          <div className="mt-2">
+            <Button variant="ghost" onClick={() => router.push("/")} className="gap-2">
+              <ArrowLeft className="h-5 w-5" />
+              {primaryLanguage === 'es' ? 'Inicio' : 'Home'}
+            </Button>
+          </div>
+        </div>
+      </header>
 
       <main className="container mx-auto px-4 py-8">
         <div className="mx-auto max-w-6xl">

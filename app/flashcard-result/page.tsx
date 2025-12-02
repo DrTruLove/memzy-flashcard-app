@@ -52,10 +52,12 @@ function FlashcardResultContent() {
       {/* Header with back button */}
       <header className="border-b border-border bg-card sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4 pt-safe">
-          <Button variant="ghost" onClick={() => router.push("/")} className="gap-2 touch-manipulation">
-            <ArrowLeft className="h-4 w-4" />
-            Back to Home
-          </Button>
+          <div className="mt-2">
+            <Button variant="ghost" onClick={() => router.push("/")} className="gap-2 touch-manipulation">
+              <ArrowLeft className="h-5 w-5" />
+              Back to Home
+            </Button>
+          </div>
         </div>
       </header>
 
