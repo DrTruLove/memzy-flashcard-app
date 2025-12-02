@@ -12,6 +12,8 @@ import "./globals.css"
 
 const SplashScreen = dynamic(() => import("@/components/splash-screen").then(mod => ({ default: mod.SplashScreen })), { ssr: false })
 const UpgradeModal = dynamic(() => import("@/components/upgrade-modal").then(mod => ({ default: mod.UpgradeModal })), { ssr: false })
+// Auth deep link listener for handling Supabase email confirmation on mobile
+const AuthDeepLinkListener = dynamic(() => import("@/components/auth-deep-link-listener").then(mod => ({ default: mod.AuthDeepLinkListener })), { ssr: false })
 
 export const metadata: Metadata = {
   title: "Memzy - AI Flashcard Creator",
@@ -52,6 +54,8 @@ export default function RootLayout({
       </head>
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
         <SplashScreen />
+        {/* AuthDeepLinkListener handles memzy://auth/callback deep links from Supabase email confirmation */}
+        <AuthDeepLinkListener />
         <LanguageProvider>
           <SubscriptionProvider>
             <DecksProvider>

@@ -22,6 +22,21 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- 
+                DEEP LINK CONFIGURATION FOR SUPABASE AUTH
+                This intent-filter allows the app to handle memzy://auth/callback URLs
+                which are used by Supabase email confirmation links.
+                When a user taps "Confirm your email" on their phone, the link opens
+                the Memzy app instead of the browser.
+            -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <!-- Custom scheme for Supabase auth callback -->
+                <data android:scheme="memzy" android:host="auth" android:pathPrefix="/callback" />
+            </intent-filter>
+
         </activity>
 
         <provider

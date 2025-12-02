@@ -43,6 +43,9 @@ export default function CreateAccountPage() {
 
     try {
       // Create account with Supabase
+      // SUPABASE AUTH DEEP LINK: emailRedirectTo is set to the custom scheme
+      // so that email confirmation links open the Memzy app on mobile devices
+      // instead of the web browser. The app handles memzy://auth/callback URLs.
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -50,6 +53,7 @@ export default function CreateAccountPage() {
           data: {
             full_name: formData.name,
           },
+          emailRedirectTo: 'memzy://auth/callback',
         },
       })
 
