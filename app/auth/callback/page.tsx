@@ -1,18 +1,16 @@
 "use client"
 
 /**
- * AUTH CALLBACK PAGE - SUPABASE DEEP LINK HANDLER
+ * AUTH CALLBACK PAGE - SUPABASE EMAIL CONFIRMATION HANDLER
  * 
- * This page handles the Supabase email confirmation deep link callback.
- * When a user taps "Confirm your email" on their phone, the link opens
- * the Memzy app with the URL: memzy://auth/callback#access_token=...&refresh_token=...
+ * This page handles the Supabase email confirmation callback.
  * 
- * This page:
- * 1. Extracts the tokens from the URL hash or query parameters
- * 2. Uses Supabase to set the session with those tokens
- * 3. Redirects the user to the home page as a logged-in user
- * 
- * For web browsers, this also serves as a fallback callback page.
+ * Flow:
+ * 1. User clicks "Confirm your email" in their email
+ * 2. Supabase redirects to: https://memzy-flashcard-app.vercel.app/auth/callback#access_token=...
+ * 3. This page detects if we're on mobile and redirects to memzy://auth/callback
+ * 4. The Android app intercepts the memzy:// URL and opens the app
+ * 5. If on desktop, we just complete the auth here on the web
  */
 
 import { useEffect, useState } from "react"
@@ -25,104 +23,104 @@ export default function AuthCallbackPage() {
   const router = useRouter()
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [message, setMessage] = useState('Confirming your email...')
-  const [debugInfo, setDebugInfo] = useState<string>('')
+  const [showOpenAppButton, setShowOpenAppButton] = useState(false)
 
   useEffect(() => {
     const handleAuthCallback = async () => {
-      console.log('[MemzyDeepLink] Auth callback page loaded')
-      console.log('[MemzyDeepLink] Current URL:', window.location.href)
-      console.log('[MemzyDeepLink] Hash:', window.location.hash)
-      console.log('[MemzyDeepLink] Search:', window.location.search)
+      console.log('[MemzyAuth] Auth callback page loaded')
+      console.log('[MemzyAuth] Current URL:', window.location.href)
       
       try {
-        // Get the URL hash (Supabase sends tokens in the hash fragment)
-        const hashParams = new URLSearchParams(window.location.hash.substring(1))
-        const queryParams = new URLSearchParams(window.location.search)
+        // Get tokens from URL hash (Supabase sends tokens in hash fragment)
+        const hash = window.location.hash.substring(1)
+        const hashParams = new URLSearchParams(hash)
         
-        // Try to get tokens from hash first, then query params
-        const accessToken = hashParams.get('access_token') || queryParams.get('access_token')
-        const refreshToken = hashParams.get('refresh_token') || queryParams.get('refresh_token')
-        const type = hashParams.get('type') || queryParams.get('type')
-        const error = hashParams.get('error') || queryParams.get('error')
-        const errorDescription = hashParams.get('error_description') || queryParams.get('error_description')
+        const accessToken = hashParams.get('access_token')
+        const refreshToken = hashParams.get('refresh_token')
+        const type = hashParams.get('type')
+        const error = hashParams.get('error')
+        const errorDescription = hashParams.get('error_description')
 
-        console.log('[MemzyDeepLink] Parsed params:', {
-          hasAccessToken: !!accessToken,
-          hasRefreshToken: !!refreshToken,
-          type,
-          error,
-          errorDescription
-        })
+        console.log('[MemzyAuth] Parsed:', { hasTokens: !!accessToken, type, error })
 
-        // Store debug info for display
-        setDebugInfo(`Type: ${type || 'none'}, HasTokens: ${!!accessToken}`)
-
-        // Check for errors from Supabase
+        // Check for errors
         if (error) {
-          console.error('[MemzyDeepLink] Auth callback error:', error, errorDescription)
           setStatus('error')
-          setMessage(errorDescription || 'Authentication failed. Please try again.')
+          setMessage(errorDescription || 'Authentication failed.')
           return
         }
 
-        // If we have tokens, set the session
-        if (accessToken && refreshToken) {
-          console.log('[MemzyDeepLink] Setting session with tokens...')
+        // Detect if user is on mobile
+        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+        console.log('[MemzyAuth] Is mobile:', isMobile)
+
+        if (isMobile && hash) {
+          // On mobile, redirect to the app using custom scheme
+          // Pass along all the tokens
+          const appUrl = `memzy://auth/callback#${hash}`
+          console.log('[MemzyAuth] Redirecting to app:', appUrl)
           
+          setMessage('Opening Memzy app...')
+          
+          // Try to open the app
+          window.location.href = appUrl
+          
+          // Show manual button after a delay (in case auto-redirect fails)
+          setTimeout(() => {
+            setShowOpenAppButton(true)
+            setMessage('Tap the button below to open the app')
+          }, 2000)
+          
+          return
+        }
+
+        // On desktop/web, complete auth here
+        if (accessToken && refreshToken) {
           const { data, error: sessionError } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
           })
 
           if (sessionError) {
-            console.error('[MemzyDeepLink] Error setting session:', sessionError)
             setStatus('error')
-            setMessage('Failed to complete sign in. Please try again.')
+            setMessage('Failed to complete sign in.')
             return
           }
 
           if (data.session) {
-            console.log('[MemzyDeepLink] Session set successfully, user:', data.session.user.email)
             setStatus('success')
             setMessage('Email confirmed! Redirecting...')
-            
-            // Short delay to show success message, then redirect to home
-            setTimeout(() => {
-              console.log('[MemzyDeepLink] Redirecting to home...')
-              router.replace('/')
-            }, 1500)
+            setTimeout(() => router.replace('/'), 1500)
             return
           }
         }
 
-        // If type is 'signup' or 'recovery', try to get existing session
-        console.log('[MemzyDeepLink] No tokens found, checking for existing session...')
+        // Check for existing session
         const { data: { session } } = await supabase.auth.getSession()
-        
         if (session) {
-          console.log('[MemzyDeepLink] Found existing session, redirecting...')
           setStatus('success')
           setMessage('You are signed in! Redirecting...')
-          setTimeout(() => {
-            router.replace('/')
-          }, 1500)
+          setTimeout(() => router.replace('/'), 1500)
           return
         }
 
-        // No tokens and no session - might be an invalid or expired link
-        console.log('[MemzyDeepLink] No session found, showing error')
         setStatus('error')
-        setMessage('Invalid or expired confirmation link. Please try signing up again.')
+        setMessage('Invalid or expired link. Please try again.')
         
       } catch (err) {
-        console.error('[MemzyDeepLink] Auth callback exception:', err)
+        console.error('[MemzyAuth] Error:', err)
         setStatus('error')
-        setMessage('An unexpected error occurred. Please try again.')
+        setMessage('An unexpected error occurred.')
       }
     }
 
     handleAuthCallback()
   }, [router])
+
+  const openApp = () => {
+    const hash = window.location.hash.substring(1)
+    window.location.href = `memzy://auth/callback#${hash}`
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
@@ -134,6 +132,15 @@ export default function AuthCallbackPage() {
             <>
               <Loader2 className="h-12 w-12 animate-spin text-purple-600 mx-auto" />
               <p className="text-lg text-muted-foreground">{message}</p>
+              
+              {showOpenAppButton && (
+                <button
+                  onClick={openApp}
+                  className="mt-4 px-8 py-3 bg-purple-600 text-white text-lg font-semibold rounded-xl hover:bg-purple-700 shadow-lg"
+                >
+                  Open Memzy App
+                </button>
+              )}
             </>
           )}
           
@@ -165,11 +172,6 @@ export default function AuthCallbackPage() {
             </>
           )}
         </div>
-        
-        {/* Debug info - remove in production */}
-        {process.env.NODE_ENV === 'development' && debugInfo && (
-          <p className="text-xs text-muted-foreground mt-8">{debugInfo}</p>
-        )}
       </div>
     </div>
   )
