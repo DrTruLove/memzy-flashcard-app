@@ -454,24 +454,46 @@ export default function DeckPage({ params }: { params: { deckId: string } }) {
   const backAudioText = primaryLanguage === 'es' ? 'Listen' : 'Escuchar'
 
   const handleSpeak = async (text: string, lang: string) => {
+    console.log('[Audio] handleSpeak called:', { text, lang })
     
     // Use native Capacitor TextToSpeech on mobile
     if (Capacitor.isNativePlatform()) {
       try {
         const { TextToSpeech } = await import('@capacitor-community/text-to-speech')
+        
+        // Try multiple Spanish locale variants
+        const langCode = lang === 'es' ? 'es-MX' : 'en-US'
+        console.log('[Audio] Speaking with native TTS:', { text, langCode })
+        
         await TextToSpeech.speak({
           text: text,
-          lang: lang === 'es' ? 'es-ES' : 'en-US',
-          rate: 0.85,
+          lang: langCode,
+          rate: 0.9,
           pitch: 1.0,
           volume: 1.0,
-          category: 'ambient',
+          category: 'playback',
         })
-      } catch (error) {
+        console.log('[Audio] Native TTS success')
+      } catch (error: any) {
         console.error('[Audio] Native TTS error:', error)
-        // Only log the error, don't show alert on physical devices
-        // The TTS might fail silently and that's okay
-        // The emulator error message was confusing users on real devices
+        // Try fallback with different Spanish locale
+        if (lang === 'es') {
+          try {
+            const { TextToSpeech } = await import('@capacitor-community/text-to-speech')
+            console.log('[Audio] Retrying with es-ES...')
+            await TextToSpeech.speak({
+              text: text,
+              lang: 'es-ES',
+              rate: 0.9,
+              pitch: 1.0,
+              volume: 1.0,
+              category: 'playback',
+            })
+            console.log('[Audio] Fallback TTS success')
+          } catch (fallbackError) {
+            console.error('[Audio] Fallback TTS also failed:', fallbackError)
+          }
+        }
       }
       return
     }

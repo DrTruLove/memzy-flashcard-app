@@ -11,10 +11,12 @@ import { ArrowLeft } from "lucide-react"
 import { FloatingNav } from "@/components/floating-nav"
 import { supabase } from "@/lib/supabase"
 import MemzyLogo from "@/components/memzy-logo"
+import { useLanguage } from "@/lib/language-context"
 
 export default function CreateAccountPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { primaryLanguage } = useLanguage()
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -24,19 +26,41 @@ export default function CreateAccountPage() {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
+  // Translations
+  const t = {
+    back: primaryLanguage === 'es' ? 'Atrás' : 'Back',
+    title: primaryLanguage === 'es' ? 'Crea tu Cuenta Memzy' : 'Create Your Memzy Account',
+    subtitle: primaryLanguage === 'es' ? 'Comienza a guardar y organizar tus tarjetas hoy' : 'Start saving and organizing your flashcards today',
+    fullName: primaryLanguage === 'es' ? 'Nombre Completo' : 'Full Name',
+    email: primaryLanguage === 'es' ? 'Correo Electrónico' : 'Email Address',
+    password: primaryLanguage === 'es' ? 'Contraseña' : 'Password',
+    confirmPassword: primaryLanguage === 'es' ? 'Confirmar Contraseña' : 'Confirm Password',
+    passwordPlaceholder: primaryLanguage === 'es' ? 'Al menos 8 caracteres' : 'At least 8 characters',
+    confirmPlaceholder: primaryLanguage === 'es' ? 'Vuelve a escribir tu contraseña' : 'Re-enter your password',
+    createAccount: primaryLanguage === 'es' ? 'Crear Cuenta' : 'Create Account',
+    creating: primaryLanguage === 'es' ? 'Creando Cuenta...' : 'Creating Account...',
+    haveAccount: primaryLanguage === 'es' ? '¿Ya tienes cuenta?' : 'Already have an account?',
+    signIn: primaryLanguage === 'es' ? 'Iniciar sesión' : 'Sign in',
+    passwordsNotMatch: primaryLanguage === 'es' ? 'Las contraseñas no coinciden' : 'Passwords do not match',
+    passwordTooShort: primaryLanguage === 'es' ? 'La contraseña debe tener al menos 8 caracteres' : 'Password must be at least 8 characters',
+    accountCreated: primaryLanguage === 'es' ? '¡Cuenta creada! Revisa tu correo para confirmar.' : 'Account created! Please check your email to confirm your account.',
+    accountExists: primaryLanguage === 'es' ? 'Ya existe una cuenta con este correo' : 'An account with this email already exists',
+    success: primaryLanguage === 'es' ? '¡Cuenta creada exitosamente!' : 'Account created successfully!',
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     setLoading(true)
 
     if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match")
+      setError(t.passwordsNotMatch)
       setLoading(false)
       return
     }
 
     if (formData.password.length < 8) {
-      setError("Password must be at least 8 characters")
+      setError(t.passwordTooShort)
       setLoading(false)
       return
     }
@@ -60,14 +84,14 @@ export default function CreateAccountPage() {
 
       // Success! Check if email confirmation is required
       if (data?.user?.identities?.length === 0) {
-        setError("An account with this email already exists")
+        setError(t.accountExists)
         setLoading(false)
         return
       }
 
       // Check if email confirmation is required
       if (data.user && !data.session) {
-        alert("Account created! Please check your email to confirm your account.")
+        alert(t.accountCreated)
         // Pass along redirect params to login page
         const redirectUrl = searchParams.get('redirect')
         const cardIndex = searchParams.get('cardIndex')
@@ -81,7 +105,7 @@ export default function CreateAccountPage() {
         }
       } else {
         // Auto-signed in
-        alert("Account created successfully!")
+        alert(t.success)
         
         // Get redirect URL and card index from query params
         const redirectUrl = searchParams.get('redirect')
@@ -100,7 +124,7 @@ export default function CreateAccountPage() {
       }
     } catch (err: any) {
       console.error("Sign up error:", err)
-      setError(err.message || "Failed to create account. Please try again.")
+      setError(err.message || (primaryLanguage === 'es' ? 'Error al crear cuenta. Intenta de nuevo.' : 'Failed to create account. Please try again.'))
       setLoading(false)
     }
   }
@@ -113,7 +137,7 @@ export default function CreateAccountPage() {
           <div className="mt-2">
             <Button variant="ghost" onClick={() => router.back()} className="gap-2">
               <ArrowLeft className="h-5 w-5" />
-              Back
+              {t.back}
             </Button>
           </div>
         </div>
@@ -126,8 +150,8 @@ export default function CreateAccountPage() {
             <div className="mb-4 flex justify-center">
               <MemzyLogo size={64} />
             </div>
-            <h1 className="mb-2 text-3xl font-bold text-foreground">Create Your Memzy Account</h1>
-            <p className="text-muted-foreground">Start saving and organizing your flashcards today</p>
+            <h1 className="mb-2 text-3xl font-bold text-foreground">{t.title}</h1>
+            <p className="text-muted-foreground">{t.subtitle}</p>
           </div>
 
           {/* Account Creation Form */}
@@ -135,7 +159,7 @@ export default function CreateAccountPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label htmlFor="name" className="mb-2 block text-sm font-medium text-foreground">
-                  Full Name
+                  {t.fullName}
                 </label>
                 <Input
                   id="name"
@@ -149,7 +173,7 @@ export default function CreateAccountPage() {
 
               <div>
                 <label htmlFor="email" className="mb-2 block text-sm font-medium text-foreground">
-                  Email Address
+                  {t.email}
                 </label>
                 <Input
                   id="email"
@@ -163,12 +187,12 @@ export default function CreateAccountPage() {
 
               <div>
                 <label htmlFor="password" className="mb-2 block text-sm font-medium text-foreground">
-                  Password
+                  {t.password}
                 </label>
                 <Input
                   id="password"
                   type="password"
-                  placeholder="At least 8 characters"
+                  placeholder={t.passwordPlaceholder}
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   required
@@ -177,12 +201,12 @@ export default function CreateAccountPage() {
 
               <div>
                 <label htmlFor="confirm-password" className="mb-2 block text-sm font-medium text-foreground">
-                  Confirm Password
+                  {t.confirmPassword}
                 </label>
                 <Input
                   id="confirm-password"
                   type="password"
-                  placeholder="Re-enter your password"
+                  placeholder={t.confirmPlaceholder}
                   value={formData.confirmPassword}
                   onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                   required
@@ -192,14 +216,14 @@ export default function CreateAccountPage() {
               {error && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
 
               <Button type="submit" className="w-full bg-purple-600 hover:bg-purple-700" disabled={loading}>
-                {loading ? "Creating Account..." : "Create Account"}
+                {loading ? t.creating : t.createAccount}
               </Button>
             </form>
 
             <div className="mt-4 text-center text-sm text-muted-foreground">
-              Already have an account?{" "}
+              {t.haveAccount}{" "}
               <button onClick={() => router.push("/login")} className="font-medium text-purple-600 hover:underline">
-                Sign in
+                {t.signIn}
               </button>
             </div>
           </Card>

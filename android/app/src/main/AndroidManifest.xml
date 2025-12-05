@@ -29,12 +29,20 @@
                 When a user taps "Confirm your email" on their phone, the link opens
                 the Memzy app instead of the browser.
             -->
-            <intent-filter android:autoVerify="true">
+            <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <!-- Custom scheme for Supabase auth callback -->
                 <data android:scheme="memzy" android:host="auth" android:pathPrefix="/callback" />
+            </intent-filter>
+
+            <!-- Also handle memzy:// with just host (no path) for flexibility -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="memzy" />
             </intent-filter>
 
         </activity>

@@ -245,16 +245,13 @@ export default function MemzyPage() {
   const dayCardFrontAudio = primaryLanguage === 'es' ? 'Escuchar' : 'Listen'
   const dayCardBackAudio = primaryLanguage === 'es' ? 'Listen' : 'Escuchar'
 
-  // Pre-existing sample decks (always available)
-  const sampleDecks = [
-    { id: "common-objects", title: "Common Objects", isSample: true },
-    { id: "animals", title: "Animals", isSample: true },
-    { id: "food-drinks", title: "Food & Drinks", isSample: true },
-    { id: "colors-shapes", title: "Colors & Shapes", isSample: true },
-  ]
+  // Note: Sample decks are pre-built and read-only - users cannot add cards to them
+  // Users can only add cards to their own custom decks
+  // The sample decks are still shown in browse-decks for viewing/learning
 
-  // Combine user decks with sample decks
-  const availableDecks = [...userDecks, ...sampleDecks]
+  // Only show user's own decks in the "Add to Deck" dialog
+  // Sample decks are excluded because they're hardcoded and can't store user cards
+  const availableDecks = userDecks
 
   useEffect(() => {
     // Load user's decks from context

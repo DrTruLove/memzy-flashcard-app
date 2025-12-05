@@ -25,9 +25,9 @@ export function AuthDeepLinkListener() {
   const hasHandledInitialUrl = useRef(false)
 
   /**
-   * Process an auth callback URL and navigate to the callback page
+   * Process an auth callback URL and complete the authentication directly
    */
-  const handleAuthUrl = (url: string) => {
+  const handleAuthUrl = async (url: string) => {
     console.log('[MemzyDeepLink] Processing URL:', url)
     
     if (!url.startsWith('memzy://auth/callback')) {
@@ -45,33 +45,38 @@ export function AuthDeepLinkListener() {
         pathname: parsedUrl.pathname
       })
       
-      // Build the callback URL with hash and/or query params
-      let callbackUrl = '/auth/callback'
+      // Extract tokens from hash
+      const hashParams = new URLSearchParams(parsedUrl.hash.substring(1))
+      const accessToken = hashParams.get('access_token')
+      const refreshToken = hashParams.get('refresh_token')
       
-      // Supabase typically sends tokens in the hash fragment
-      if (parsedUrl.hash) {
-        callbackUrl += parsedUrl.hash
-      }
+      console.log('[MemzyDeepLink] Tokens found:', { hasAccess: !!accessToken, hasRefresh: !!refreshToken })
       
-      // Sometimes tokens come as query params
-      if (parsedUrl.search) {
-        // If we already have a hash, append query params with &
-        if (parsedUrl.hash) {
-          callbackUrl += '&' + parsedUrl.search.substring(1)
+      if (accessToken && refreshToken) {
+        // Import supabase and set session directly
+        const { supabase } = await import('@/lib/supabase')
+        
+        console.log('[MemzyDeepLink] Setting session...')
+        const { data, error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        })
+        
+        if (error) {
+          console.error('[MemzyDeepLink] Error setting session:', error)
         } else {
-          callbackUrl += parsedUrl.search
+          console.log('[MemzyDeepLink] Session set successfully:', data.session?.user?.email)
         }
       }
       
-      console.log('[MemzyDeepLink] Navigating to callback:', callbackUrl)
-      
-      // Use replace to avoid back button going to the deep link
-      router.replace(callbackUrl)
+      // Navigate directly to home (skip the callback page entirely)
+      console.log('[MemzyDeepLink] Navigating to home...')
+      router.replace('/')
       return true
     } catch (error) {
-      console.error('[MemzyDeepLink] Error parsing URL:', error)
-      // On any error, navigate to login page
-      router.replace('/login')
+      console.error('[MemzyDeepLink] Error processing URL:', error)
+      // On any error, still go to home
+      router.replace('/')
       return false
     }
   }

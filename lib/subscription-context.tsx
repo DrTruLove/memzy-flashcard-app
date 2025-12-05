@@ -184,7 +184,13 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         }
         
         if (storedUsage) {
-          setUsage(JSON.parse(storedUsage))
+          const parsed = JSON.parse(storedUsage)
+          // Only set if values are valid numbers, otherwise keep defaults (0)
+          setUsage({
+            cardsCreated: typeof parsed.cardsCreated === 'number' ? parsed.cardsCreated : 0,
+            exportsUsed: typeof parsed.exportsUsed === 'number' ? parsed.exportsUsed : 0,
+            decksCreated: typeof parsed.decksCreated === 'number' ? parsed.decksCreated : 0,
+          })
         }
         
         // Try to sync with server if user is logged in

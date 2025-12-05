@@ -13,10 +13,12 @@ import { ArrowLeft } from "lucide-react"
 import { FloatingNav } from "@/components/floating-nav"
 import { supabase } from "@/lib/supabase"
 import MemzyLogo from "@/components/memzy-logo"
+import { useLanguage } from "@/lib/language-context"
 
 export default function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { primaryLanguage } = useLanguage()
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -24,6 +26,22 @@ export default function LoginPage() {
   const [rememberUsername, setRememberUsername] = useState(false)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+
+  // Translations
+  const t = {
+    back: primaryLanguage === 'es' ? 'Atrás' : 'Back',
+    title: primaryLanguage === 'es' ? 'Bienvenido de Nuevo a Memzy' : 'Welcome Back to Memzy',
+    subtitle: primaryLanguage === 'es' ? 'Inicia sesión para acceder a tus tarjetas' : 'Sign in to access your flashcards',
+    email: primaryLanguage === 'es' ? 'Correo Electrónico' : 'Email Address',
+    password: primaryLanguage === 'es' ? 'Contraseña' : 'Password',
+    passwordPlaceholder: primaryLanguage === 'es' ? 'Ingresa tu contraseña' : 'Enter your password',
+    rememberUsername: primaryLanguage === 'es' ? 'Recordar usuario' : 'Remember username',
+    signIn: primaryLanguage === 'es' ? 'Iniciar Sesión' : 'Sign In',
+    signingIn: primaryLanguage === 'es' ? 'Iniciando Sesión...' : 'Signing In...',
+    noAccount: primaryLanguage === 'es' ? '¿No tienes cuenta?' : "Don't have an account?",
+    createOne: primaryLanguage === 'es' ? 'Crear una' : 'Create one',
+    invalidCredentials: primaryLanguage === 'es' ? 'Correo o contraseña inválidos' : 'Invalid email or password',
+  }
 
   // Load remembered username on mount
   useEffect(() => {
@@ -72,7 +90,7 @@ export default function LoginPage() {
       }
     } catch (err: any) {
       console.error("Sign in error:", err)
-      setError(err.message || "Invalid email or password")
+      setError(err.message || t.invalidCredentials)
       setLoading(false)
     }
   }
@@ -85,7 +103,7 @@ export default function LoginPage() {
           <div className="mt-2">
             <Button variant="ghost" onClick={() => router.back()} className="gap-2">
               <ArrowLeft className="h-5 w-5" />
-              Back
+              {t.back}
             </Button>
           </div>
         </div>
@@ -98,8 +116,8 @@ export default function LoginPage() {
             <div className="mb-4 flex justify-center">
               <MemzyLogo size={64} />
             </div>
-            <h1 className="mb-2 text-3xl font-bold text-foreground">Welcome Back to Memzy</h1>
-            <p className="text-muted-foreground">Sign in to access your flashcards</p>
+            <h1 className="mb-2 text-3xl font-bold text-foreground">{t.title}</h1>
+            <p className="text-muted-foreground">{t.subtitle}</p>
           </div>
 
           {/* Login Form */}
@@ -107,7 +125,7 @@ export default function LoginPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label htmlFor="email" className="mb-2 block text-sm font-medium text-foreground">
-                  Email Address
+                  {t.email}
                 </label>
                 <Input
                   id="email"
@@ -121,12 +139,12 @@ export default function LoginPage() {
 
               <div>
                 <label htmlFor="password" className="mb-2 block text-sm font-medium text-foreground">
-                  Password
+                  {t.password}
                 </label>
                 <Input
                   id="password"
                   type="password"
-                  placeholder="Enter your password"
+                  placeholder={t.passwordPlaceholder}
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   required
@@ -143,21 +161,21 @@ export default function LoginPage() {
                   htmlFor="remember" 
                   className="text-sm font-normal text-muted-foreground cursor-pointer"
                 >
-                  Remember username
+                  {t.rememberUsername}
                 </Label>
               </div>
 
               {error && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
 
               <Button type="submit" className="w-full bg-purple-600 hover:bg-purple-700" disabled={loading}>
-                {loading ? "Signing In..." : "Sign In"}
+                {loading ? t.signingIn : t.signIn}
               </Button>
             </form>
 
             <div className="mt-4 text-center text-sm text-muted-foreground">
-              Don't have an account?{" "}
+              {t.noAccount}{" "}
               <button onClick={() => router.push("/create-account")} className="font-medium text-purple-600 hover:underline">
-                Create one
+                {t.createOne}
               </button>
             </div>
           </Card>
