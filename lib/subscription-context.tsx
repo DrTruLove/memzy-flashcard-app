@@ -48,8 +48,8 @@ export const PLAN_PRICING = {
 // FREE PLAN LIMITS
 export const FREE_LIMITS = {
   MAX_CARDS: 12,
-  MAX_EXPORTS: 1,
-  MAX_DECKS: 1,
+  MAX_EXPORTS: 2,
+  MAX_DECKS: 2,
 } as const
 
 // ===========================
@@ -107,14 +107,33 @@ interface SubscriptionContextType {
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined)
 
 // ===========================
-// LOCAL STORAGE KEYS
+// LOCAL STORAGE KEYS (user-specific)
 // ===========================
 
-const STORAGE_KEYS = {
-  PLAN: 'memzy_subscription_plan',
-  USAGE: 'memzy_subscription_usage',
-  PRO_EXPIRY: 'memzy_pro_expiry',
-} as const
+const getStorageKeys = (userId?: string) => {
+  const suffix = userId ? `_${userId}` : ''
+  return {
+    PLAN: `memzy_subscription_plan${suffix}`,
+    USAGE: `memzy_subscription_usage${suffix}`,
+    PRO_EXPIRY: `memzy_pro_expiry${suffix}`,
+  }
+}
+
+// Clean up old localStorage keys that don't have user suffix
+// This ensures fresh start for new accounts
+const cleanupOldStorageKeys = () => {
+  const oldKeys = [
+    'memzy_subscription_plan',
+    'memzy_subscription_usage', 
+    'memzy_pro_expiry',
+  ]
+  oldKeys.forEach(key => {
+    if (localStorage.getItem(key) !== null) {
+      console.log('[Subscription] Removing old storage key:', key)
+      localStorage.removeItem(key)
+    }
+  })
+}
 
 // ===========================
 // SUBSCRIPTION PROVIDER
@@ -127,6 +146,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     exportsUsed: 0,
     decksCreated: 0,
   })
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [upgradeReason, setUpgradeReason] = useState('')
@@ -158,56 +178,128 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   // LOAD SUBSCRIPTION STATE
   // ===========================
   
-  useEffect(() => {
-    const loadSubscriptionState = async () => {
+  const loadUserSubscriptionState = useCallback(async (userId: string | null) => {
+    // Clean up any old localStorage keys (without user suffix)
+    cleanupOldStorageKeys()
+    
+    // Reset to defaults first (for new/different user)
+    setPlan(SUBSCRIPTION_PLANS.FREE)
+    setUsage({ cardsCreated: 0, exportsUsed: 0, decksCreated: 0 })
+    setCurrentUserId(userId)
+    
+    if (!userId) {
+      setIsLoading(false)
+      return
+    }
+    
+    try {
+      const STORAGE_KEYS = getStorageKeys(userId)
+      
+      // First, try to get ACTUAL counts from the database (most accurate)
+      let actualCardCount = 0
+      let actualDeckCountFromDb = 0
+      let actualExportCount = 0
+      
       try {
-        // Try to load from local storage first (for offline support)
-        const storedPlan = localStorage.getItem(STORAGE_KEYS.PLAN)
-        const storedUsage = localStorage.getItem(STORAGE_KEYS.USAGE)
-        const storedExpiry = localStorage.getItem(STORAGE_KEYS.PRO_EXPIRY)
+        // Count user's actual flashcards
+        const { count: cardCount } = await supabase
+          .from('flashcards')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', userId)
+        actualCardCount = cardCount || 0
         
-        if (storedPlan) {
-          // Check if Pro subscription has expired
-          if (storedPlan !== SUBSCRIPTION_PLANS.FREE && storedExpiry) {
-            const expiryDate = new Date(storedExpiry)
-            if (expiryDate < new Date()) {
-              // Subscription expired, revert to free
-              setPlan(SUBSCRIPTION_PLANS.FREE)
-              localStorage.setItem(STORAGE_KEYS.PLAN, SUBSCRIPTION_PLANS.FREE)
-              localStorage.removeItem(STORAGE_KEYS.PRO_EXPIRY)
-            } else {
-              setPlan(storedPlan as SubscriptionPlan)
-            }
-          } else {
-            setPlan(storedPlan as SubscriptionPlan)
+        // Count user's actual decks (excluding sample decks)
+        const { count: deckCount } = await supabase
+          .from('decks')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', userId)
+        actualDeckCountFromDb = deckCount || 0
+        
+        console.log('[Subscription] Actual counts from DB - cards:', actualCardCount, 'decks:', actualDeckCountFromDb)
+        
+        // Use actual database counts
+        const actualUsage = {
+          cardsCreated: actualCardCount,
+          exportsUsed: 0, // We'll get this from localStorage or server
+          decksCreated: actualDeckCountFromDb,
+        }
+        
+        // Try to get export count from localStorage (exports aren't stored in DB)
+        const storedUsage = localStorage.getItem(STORAGE_KEYS.USAGE)
+        if (storedUsage) {
+          const parsed = JSON.parse(storedUsage)
+          if (typeof parsed.exportsUsed === 'number') {
+            actualUsage.exportsUsed = parsed.exportsUsed
           }
         }
         
+        setUsage(actualUsage)
+        localStorage.setItem(STORAGE_KEYS.USAGE, JSON.stringify(actualUsage))
+      } catch (dbError) {
+        console.log('[Subscription] Could not fetch from DB, using localStorage:', dbError)
+        // Fall back to localStorage if database query fails
+        const storedUsage = localStorage.getItem(STORAGE_KEYS.USAGE)
         if (storedUsage) {
           const parsed = JSON.parse(storedUsage)
-          // Only set if values are valid numbers, otherwise keep defaults (0)
           setUsage({
             cardsCreated: typeof parsed.cardsCreated === 'number' ? parsed.cardsCreated : 0,
             exportsUsed: typeof parsed.exportsUsed === 'number' ? parsed.exportsUsed : 0,
             decksCreated: typeof parsed.decksCreated === 'number' ? parsed.decksCreated : 0,
           })
         }
-        
-        // Try to sync with server if user is logged in
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-          await syncWithServer(user.id)
-          await fetchActualDeckCount()
-        }
-      } catch (error) {
-        console.error('Error loading subscription state:', error)
-      } finally {
-        setIsLoading(false)
       }
+      
+      // Load plan from localStorage
+      const storedPlan = localStorage.getItem(STORAGE_KEYS.PLAN)
+      const storedExpiry = localStorage.getItem(STORAGE_KEYS.PRO_EXPIRY)
+      
+      if (storedPlan) {
+        // Check if Pro subscription has expired
+        if (storedPlan !== SUBSCRIPTION_PLANS.FREE && storedExpiry) {
+          const expiryDate = new Date(storedExpiry)
+          if (expiryDate < new Date()) {
+            // Subscription expired, revert to free
+            setPlan(SUBSCRIPTION_PLANS.FREE)
+            localStorage.setItem(STORAGE_KEYS.PLAN, SUBSCRIPTION_PLANS.FREE)
+            localStorage.removeItem(STORAGE_KEYS.PRO_EXPIRY)
+          } else {
+            setPlan(storedPlan as SubscriptionPlan)
+          }
+        } else {
+          setPlan(storedPlan as SubscriptionPlan)
+        }
+      }
+      
+      // Sync with server for subscription status
+      await syncWithServer(userId)
+      await fetchActualDeckCount()
+    } catch (error) {
+      console.error('Error loading subscription state:', error)
+    } finally {
+      setIsLoading(false)
     }
-    
-    loadSubscriptionState()
   }, [fetchActualDeckCount])
+  
+  useEffect(() => {
+    // Initial load
+    const initLoad = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      await loadUserSubscriptionState(user?.id || null)
+    }
+    initLoad()
+    
+    // Listen for auth state changes (login, logout, new signup)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[Subscription] Auth state changed:', event)
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
+        await loadUserSubscriptionState(session?.user?.id || null)
+      }
+    })
+    
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [loadUserSubscriptionState])
   
   // ===========================
   // SYNC WITH SERVER
@@ -249,6 +341,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
           decksCreated: usageData.decks_created || 0,
         }
         setUsage(serverUsage)
+        const STORAGE_KEYS = getStorageKeys(userId)
         localStorage.setItem(STORAGE_KEYS.USAGE, JSON.stringify(serverUsage))
       }
     } catch (error) {
@@ -263,12 +356,14 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   
   const saveUsage = useCallback(async (newUsage: SubscriptionUsage) => {
     setUsage(newUsage)
-    localStorage.setItem(STORAGE_KEYS.USAGE, JSON.stringify(newUsage))
     
-    // Try to sync with server
+    // Try to sync with server and save to user-specific localStorage
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
+        const STORAGE_KEYS = getStorageKeys(user.id)
+        localStorage.setItem(STORAGE_KEYS.USAGE, JSON.stringify(newUsage))
+        
         await supabase
           .from('user_usage')
           .upsert({

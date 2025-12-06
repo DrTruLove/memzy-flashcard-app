@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
-import { getDeckWithCards, createFlashcard, createDeck, addCardToDecks, removeCardFromDeck, deleteFlashcard, updateFlashcardImage, getSampleCardCustomizations, saveSampleCardCustomization, addCardToFavorites, removeCardFromFavorites, isCardInFavorites, deleteDeck, moveCardToUncategorized, copySampleCardToUncategorized, updateDeckName } from "@/lib/database"
+import { getDeckWithCards, createFlashcard, createDeck, addCardToDecks, removeCardFromDeck, deleteFlashcard, updateFlashcardImage, getSampleCardCustomizations, saveSampleCardCustomization, addCardToFavorites, removeCardFromFavorites, isCardInFavorites, deleteDeck, moveCardToUncategorized, copySampleCardToUncategorized, updateDeckName, markSampleCardAsDeleted } from "@/lib/database"
 import type { DeckWithCards } from "@/lib/database"
 import { useDecks } from "@/lib/decks-context"
 import { useSubscription } from "@/lib/subscription-context"
@@ -248,20 +248,27 @@ export default function DeckPage({ params }: { params: { deckId: string } }) {
       if (deckData[deckId]) {
         setDeck(deckData[deckId] as any)
         
-        // Load user customizations for sample deck
-        const customizations = await getSampleCardCustomizations(deckId)
+        // Load user customizations for sample deck (includes deleted cards)
+        const { customizations, deletedIndices } = await getSampleCardCustomizations(deckId)
         
-        // Apply customizations to sample deck cards
-        const cardsWithCustomizations = deckData[deckId].cards.map((card, index) => {
-          if (customizations[index]) {
-            // User has a custom image for this card
-            return {
-              ...card,
-              image: customizations[index]
+        // Apply customizations and filter out deleted cards
+        const cardsWithCustomizations = deckData[deckId].cards
+          .map((card, index) => {
+            // Skip deleted cards
+            if (deletedIndices.has(index)) {
+              return null
             }
-          }
-          return card
-        })
+            // Apply custom image if exists
+            if (customizations[index]) {
+              return {
+                ...card,
+                image: customizations[index],
+                originalIndex: index // Track original index for deletion
+              }
+            }
+            return { ...card, originalIndex: index }
+          })
+          .filter((card): card is NonNullable<typeof card> => card !== null)
         
         setCards(cardsWithCustomizations)
         setLoading(false)
@@ -640,15 +647,33 @@ export default function DeckPage({ params }: { params: { deckId: string } }) {
     const deckName = (deck as any)?.name || ''
     const isUncategorized = deckName === 'Uncategorized'
     
-    // For sample decks, copy the card to Uncategorized
+    // For sample decks, copy the card to Uncategorized and mark as deleted
     if (isSampleDeck) {
-      const success = await copySampleCardToUncategorized(
+      // Check if user is signed in first
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        alert('Please sign in to delete sample cards.')
+        return
+      }
+      
+      // Copy card to Uncategorized deck
+      const copySuccess = await copySampleCardToUncategorized(
         cardToDelete.card.english,
         cardToDelete.card.spanish,
         cardToDelete.card.image
       )
       
-      if (success) {
+      if (!copySuccess) {
+        alert('Failed to move card. Please try again.')
+        return
+      }
+      
+      // Mark the sample card as deleted (persist the deletion)
+      // Use originalIndex if available (for filtered cards), otherwise use the card index
+      const originalIndex = cardToDelete.card.originalIndex ?? cardToDelete.index
+      const deleteSuccess = await markSampleCardAsDeleted(deckId, originalIndex)
+      
+      if (deleteSuccess) {
         // Remove from local state (visually hide the card)
         const newCards = cards.filter((_, i) => i !== cardToDelete.index)
         setCards(newCards)
@@ -666,7 +691,7 @@ export default function DeckPage({ params }: { params: { deckId: string } }) {
         setCardToDelete(null)
         mutateDecks()
       } else {
-        alert('Failed to move card. Please sign in and try again.')
+        alert('Card moved to Uncategorized but failed to hide from sample deck.')
       }
       return
     }

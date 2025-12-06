@@ -280,6 +280,48 @@ export async function removeCardFromDeck(deckId: string, cardId: string): Promis
   return true
 }
 
+// Get or create the Uncategorized deck for the current user
+export async function getOrCreateUncategorizedDeck(): Promise<{ id: string; name: string } | null> {
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) return null
+
+  try {
+    // Check if Uncategorized deck already exists
+    const { data: existingUncategorized } = await supabase
+      .from('decks')
+      .select('id, name')
+      .eq('user_id', user.id)
+      .eq('name', 'Uncategorized')
+      .limit(1)
+
+    if (existingUncategorized && existingUncategorized.length > 0) {
+      return existingUncategorized[0]
+    }
+
+    // Create Uncategorized deck
+    const { data: newDeck, error: createError } = await supabase
+      .from('decks')
+      .insert({
+        user_id: user.id,
+        name: 'Uncategorized',
+        description: 'Cards without a specific deck'
+      })
+      .select('id, name')
+      .single()
+
+    if (createError || !newDeck) {
+      console.error('Error creating Uncategorized deck:', createError)
+      return null
+    }
+
+    return newDeck
+  } catch (error) {
+    console.error('Error in getOrCreateUncategorizedDeck:', error)
+    return null
+  }
+}
+
 // Move card from any deck to Uncategorized (instead of deleting)
 export async function moveCardToUncategorized(deckId: string, cardId: string): Promise<boolean> {
   const { data: { user } } = await supabase.auth.getUser()
@@ -701,12 +743,20 @@ export async function saveSampleCardCustomization(
 }
 
 // Get all customizations for a user's sample deck
+// Special marker to indicate a deleted sample card
+const DELETED_MARKER = '__DELETED__'
+
+export interface SampleCardCustomizationsResult {
+  customizations: Record<number, string>
+  deletedIndices: Set<number>
+}
+
 export async function getSampleCardCustomizations(
   deckId: string
-): Promise<Record<number, string>> {
+): Promise<SampleCardCustomizationsResult> {
   const { data: { user } } = await supabase.auth.getUser()
   
-  if (!user) return {}
+  if (!user) return { customizations: {}, deletedIndices: new Set() }
 
   const { data, error } = await supabase
     .from('user_sample_card_customizations')
@@ -718,19 +768,58 @@ export async function getSampleCardCustomizations(
     // If table doesn't exist yet, just return empty (don't crash the app)
     if (error.code === 'PGRST116' || error.message.includes('does not exist')) {
       console.warn('Sample card customizations table not created yet. Run the SQL migration from ADD_SAMPLE_CUSTOMIZATIONS_TABLE.sql')
-      return {}
+      return { customizations: {}, deletedIndices: new Set() }
     }
     console.error('Error fetching sample card customizations:', error)
-    return {}
+    return { customizations: {}, deletedIndices: new Set() }
   }
 
-  // Convert array to object: { cardIndex: imageUrl }
+  // Convert array to object: { cardIndex: imageUrl } and track deleted cards
   const customizations: Record<number, string> = {}
+  const deletedIndices = new Set<number>()
+  
   data?.forEach(item => {
-    customizations[item.card_index] = item.custom_image_url
+    if (item.custom_image_url === DELETED_MARKER) {
+      deletedIndices.add(item.card_index)
+    } else {
+      customizations[item.card_index] = item.custom_image_url
+    }
   })
 
-  return customizations
+  return { customizations, deletedIndices }
+}
+
+// Mark a sample card as deleted for the current user
+export async function markSampleCardAsDeleted(
+  deckId: string,
+  cardIndex: number
+): Promise<boolean> {
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) {
+    console.error('User must be logged in to delete sample cards')
+    return false
+  }
+
+  // Upsert with DELETED_MARKER as the image URL
+  const { error } = await supabase
+    .from('user_sample_card_customizations')
+    .upsert({
+      user_id: user.id,
+      deck_id: deckId,
+      card_index: cardIndex,
+      custom_image_url: DELETED_MARKER,
+      updated_at: new Date().toISOString()
+    }, {
+      onConflict: 'user_id,deck_id,card_index'
+    })
+
+  if (error) {
+    console.error('Error marking sample card as deleted:', error)
+    return false
+  }
+
+  return true
 }
 
 // Delete a specific customization

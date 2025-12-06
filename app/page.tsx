@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label"
 import Image from "next/image"
 import { ChevronRight, Upload, Camera, X, Loader2, Plus, Check, Save, Trash2, Download, Volume2, Settings, BookOpen, Sparkles, ImageIcon, Pencil, Heart, Crown, FlipHorizontal2 } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { createFlashcard, createDeck, addCardToDecks, deleteFlashcard, addCardToFavorites, removeCardFromFavorites, isCardInFavorites } from "@/lib/database"
+import { createFlashcard, createDeck, addCardToDecks, deleteFlashcard, addCardToFavorites, removeCardFromFavorites, isCardInFavorites, getOrCreateUncategorizedDeck } from "@/lib/database"
 import { useDecks } from "@/lib/decks-context"
 import { supabase } from "@/lib/supabase"
 import type { User } from "@supabase/supabase-js"
@@ -910,6 +910,31 @@ export default function MemzyPage() {
         alert(`Flashcard saved to: ${deckNames.join(", ")}`)
         
         // Refresh the decks list to show new deck
+        mutateDecks()
+        
+        // Close the result dialog and reset state
+        setShowResult(false)
+        setIsResultCardFlipped(false)
+        setImagePreview("")
+        setImageFile(null)
+        setEnglishWord("")
+        setSpanishWord("")
+      } else if (card && finalDeckIds.length === 0) {
+        // No deck selected - automatically add to Uncategorized
+        const { getOrCreateUncategorizedDeck, addCardToDecks: addToDeck } = await import('@/lib/database')
+        const uncategorizedDeck = await getOrCreateUncategorizedDeck()
+        if (uncategorizedDeck) {
+          await addToDeck(card.id, [uncategorizedDeck.id])
+          alert(primaryLanguage === 'es' 
+            ? 'Tarjeta guardada en Sin Categoría' 
+            : 'Flashcard saved to Uncategorized')
+        } else {
+          alert(primaryLanguage === 'es' 
+            ? 'Tarjeta creada (sin mazo)' 
+            : 'Flashcard created (no deck selected)')
+        }
+        
+        // Refresh the decks list
         mutateDecks()
         
         // Close the result dialog and reset state
