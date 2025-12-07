@@ -140,7 +140,6 @@ export default function MemzyPage() {
     positionObject: primaryLanguage === 'es' ? 'Posiciona el objeto en el centro' : 'Position the object in the center',
     capturePhoto: primaryLanguage === 'es' ? 'Capturar Foto' : 'Capture Photo',
     downloadOrSaveCard: primaryLanguage === 'es' ? 'Descargar o Guardar Tarjeta' : 'Download or Save Card',
-    downloadCard: primaryLanguage === 'es' ? 'Descargar Tarjeta' : 'Download Card',
     saveToDeck: primaryLanguage === 'es' ? 'Guardar en Mazo' : 'Save to Deck',
     selectOneOrMore: primaryLanguage === 'es' 
       ? 'Selecciona uno o más mazos para agregar esta tarjeta'
@@ -187,9 +186,11 @@ export default function MemzyPage() {
   const [selectedDecks, setSelectedDecks] = useState<string[]>([])
   const [newDeckName, setNewDeckName] = useState("")
   const [isCreatingDeck, setIsCreatingDeck] = useState(false)
+  const [isCreatingDeckLoading, setIsCreatingDeckLoading] = useState(false)
   const [userDecks, setUserDecks] = useState<Array<{ id: string; title: string }>>([])
   const [isSaving, setIsSaving] = useState(false)
   const [showDownloadCardsDialog, setShowDownloadCardsDialog] = useState(false)
+  const [downloadInitialCard, setDownloadInitialCard] = useState<{ id: string; card: { id: string; user_id: string; english_word: string; spanish_word: string; image_url: string | null; is_ai_generated?: boolean; created_at: string; updated_at: string } } | undefined>(undefined)
   const [isDailyCardFavorited, setIsDailyCardFavorited] = useState(false)
   const [showDailyFavoritingLoader, setShowDailyFavoritingLoader] = useState(false)
   const [isResultCardFavorited, setIsResultCardFavorited] = useState(false)
@@ -823,40 +824,52 @@ export default function MemzyPage() {
   }
 
   const handleSaveNewDeck = async () => {
-    if (newDeckName.trim()) {
-      // FREE LIMIT — REQUIRE PRO UPGRADE for multiple decks
-      if (!canCreateDeck()) {
-        setUpgradeReason(primaryLanguage === 'es' 
-          ? 'Los usuarios gratis solo pueden tener 1 mazo. ¡Actualiza a Pro para mazos ilimitados!'
-          : 'Free users can only have 1 deck. Upgrade to Pro for unlimited decks!')
-        setShowUpgradeModal(true)
-        return
+    if (!newDeckName.trim()) {
+      alert(primaryLanguage === 'es' ? 'Por favor ingresa un nombre para el mazo' : 'Please enter a deck name')
+      return
+    }
+    
+    // FREE LIMIT — REQUIRE PRO UPGRADE for multiple decks
+    if (!canCreateDeck()) {
+      setUpgradeReason(primaryLanguage === 'es' 
+        ? 'Los usuarios gratis solo pueden tener 2 mazos. ¡Actualiza a Pro para mazos ilimitados!'
+        : 'Free users can only have 2 decks. Upgrade to Pro for unlimited decks!')
+      setShowUpgradeModal(true)
+      return
+    }
+    
+    setIsCreatingDeckLoading(true)
+    
+    try {
+      const deck = await createDeck(newDeckName)
+      if (deck) {
+        // FREE LIMIT — INCREMENT DECK COUNT
+        await incrementDecks()
+        
+        // Add to user decks and select it
+        setUserDecks(prev => [...prev, { id: deck.id, title: deck.name, isSample: false }])
+        setSelectedDecks(prev => [...prev, deck.id])
+        
+        // Show success feedback
+        alert(primaryLanguage === 'es' ? `Mazo "${deck.name}" creado` : `Deck "${deck.name}" created`)
+      } else {
+        alert(primaryLanguage === 'es' ? 'Error al crear el mazo' : 'Failed to create deck')
       }
-      
-      try {
-        const deck = await createDeck(newDeckName)
-        if (deck) {
-          // FREE LIMIT — INCREMENT DECK COUNT
-          await incrementDecks()
-          
-          // Add to user decks and select it
-          setUserDecks(prev => [...prev, { id: deck.id, title: deck.name, isSample: false }])
-          setSelectedDecks(prev => [...prev, deck.id])
-        }
-        setNewDeckName("")
-        setIsCreatingDeck(false)
-      } catch (error) {
-        console.error('Error creating deck:', error)
-        // Check if it's an auth error
-        if (error instanceof Error && error.message.includes('logged in')) {
-          alert("Please sign in to create decks")
-          setTimeout(() => {
-            router.push("/login")
-          }, 100)
-        } else {
-          alert("Failed to create deck. Please try again.")
-        }
+      setNewDeckName("")
+      setIsCreatingDeck(false)
+    } catch (error) {
+      console.error('Error creating deck:', error)
+      // Check if it's an auth error
+      if (error instanceof Error && error.message.includes('logged in')) {
+        alert(primaryLanguage === 'es' ? 'Por favor inicia sesión para crear mazos' : 'Please sign in to create decks')
+        setTimeout(() => {
+          router.push("/login")
+        }, 100)
+      } else {
+        alert(primaryLanguage === 'es' ? 'Error al crear el mazo. Intenta de nuevo.' : 'Failed to create deck. Please try again.')
       }
+    } finally {
+      setIsCreatingDeckLoading(false)
     }
   }
 
@@ -956,13 +969,14 @@ export default function MemzyPage() {
       console.error("Error saving flashcard:", error)
       // Check if it's an auth error
       if (error instanceof Error && error.message.includes('logged in')) {
-        alert("Please sign in to create decks")
+        alert(primaryLanguage === 'es' ? 'Por favor inicia sesión para guardar tarjetas' : 'Please sign in to save cards')
         setTimeout(() => {
           router.push("/login")
         }, 100)
       } else {
-        alert("Failed to save flashcard. Please try again.")
+        alert(primaryLanguage === 'es' ? 'Error al guardar la tarjeta. Intenta de nuevo.' : 'Failed to save flashcard. Please try again.')
       }
+    } finally {
       setIsSaving(false)
     }
   }
@@ -1892,7 +1906,7 @@ export default function MemzyPage() {
           
           <Tabs defaultValue="download" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="download">{t.downloadCard}</TabsTrigger>
+              <TabsTrigger value="download">{t.downloadCards}</TabsTrigger>
               <TabsTrigger value="save">{t.saveToDeck}</TabsTrigger>
             </TabsList>
             
@@ -1921,11 +1935,26 @@ export default function MemzyPage() {
                     onChange={(e) => setNewDeckName(e.target.value)}
                     placeholder={t.enterDeckName}
                     autoFocus
+                    disabled={isCreatingDeckLoading}
                   />
                   <div className="flex gap-2">
-                    <Button onClick={handleSaveNewDeck} size="sm" className="flex-1">
-                      <Check className="h-4 w-4 mr-1" />
-                      {t.create}
+                    <Button 
+                      onClick={handleSaveNewDeck} 
+                      size="sm" 
+                      className="flex-1"
+                      disabled={isCreatingDeckLoading || !newDeckName.trim()}
+                    >
+                      {isCreatingDeckLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                          {primaryLanguage === 'es' ? 'Creando...' : 'Creating...'}
+                        </>
+                      ) : (
+                        <>
+                          <Check className="h-4 w-4 mr-1" />
+                          {t.create}
+                        </>
+                      )}
                     </Button>
                     <Button 
                       onClick={() => {
@@ -1935,6 +1964,7 @@ export default function MemzyPage() {
                       size="sm" 
                       variant="outline"
                       className="flex-1"
+                      disabled={isCreatingDeckLoading}
                     >
                       {t.cancel}
                     </Button>
@@ -1946,6 +1976,13 @@ export default function MemzyPage() {
             {/* Existing Decks */}
             <div className="space-y-2">
               <h3 className="font-medium text-foreground">{t.selectExistingDecks}</h3>
+              {availableDecks.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  {primaryLanguage === 'es' 
+                    ? 'No tienes mazos aún. Crea uno arriba.' 
+                    : 'No decks yet. Create one above.'}
+                </p>
+              ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {availableDecks.map((deck) => (
                   <div
@@ -1965,6 +2002,7 @@ export default function MemzyPage() {
                   </div>
                 ))}
               </div>
+              )}
             </div>
 
               {/* Action Buttons */}
@@ -1989,10 +2027,12 @@ export default function MemzyPage() {
               </div>
             </TabsContent>
             
-            {/* Download Card Tab */}
+            {/* Download Cards Tab */}
             <TabsContent value="download" className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                {t.downloadAsImage}
+                {primaryLanguage === 'es' 
+                  ? 'Descarga esta tarjeta y agrega más tarjetas de tus mazos'
+                  : 'Download this card and add more cards from your decks'}
               </p>
               
               <div className="rounded-lg border border-border p-6">
@@ -2013,14 +2053,31 @@ export default function MemzyPage() {
                 </div>
               </div>
               
-              {/* Download Format Options */}
+              {/* Open Download Cards Dialog */}
               <Button 
-                onClick={handleDownloadCard}
-                variant="outline"
-                className="w-full border-purple-600 text-purple-600 hover:bg-purple-50"
+                onClick={() => {
+                  // Create a temporary card object for the dialog
+                  const tempCard = {
+                    id: `temp-${Date.now()}`,
+                    card: {
+                      id: `temp-${Date.now()}`,
+                      user_id: user?.id || '',
+                      english_word: englishWord,
+                      spanish_word: spanishWord,
+                      image_url: imagePreview || null,
+                      is_ai_generated: showResult,
+                      created_at: new Date().toISOString(),
+                      updated_at: new Date().toISOString(),
+                    }
+                  }
+                  setDownloadInitialCard(tempCard)
+                  setShowAddToDeck(false)
+                  setShowDownloadCardsDialog(true)
+                }}
+                className="w-full bg-purple-600 hover:bg-purple-700"
               >
                 <Download className="mr-2 h-4 w-4" />
-                Download JPG
+                {primaryLanguage === 'es' ? 'Seleccionar y Descargar Tarjetas' : 'Select & Download Cards'}
               </Button>
             </TabsContent>
           </Tabs>
@@ -2030,7 +2087,13 @@ export default function MemzyPage() {
       {/* Download Cards Dialog */}
       <DownloadCardsDialog
         open={showDownloadCardsDialog}
-        onOpenChange={setShowDownloadCardsDialog}
+        onOpenChange={(open) => {
+          setShowDownloadCardsDialog(open)
+          if (!open) {
+            setDownloadInitialCard(undefined)
+          }
+        }}
+        initialSelectedCard={downloadInitialCard}
       />
     </div>
   )
