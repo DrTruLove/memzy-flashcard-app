@@ -8,7 +8,16 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.error('Missing Supabase environment variables. Please check .env.local')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Configure Supabase with proper auth persistence for mobile
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    // Use localStorage for session persistence (works in Capacitor WebView)
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+  },
+})
 
 // Helper function to check if user is authenticated
 export async function getCurrentUser() {

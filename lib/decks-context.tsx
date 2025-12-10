@@ -28,11 +28,16 @@ async function fetchDecksWithInfo(): Promise<DeckWithInfo[]> {
   console.time('[DecksContext] fetchDecksWithInfo')
   
   try {
+    console.log('[DecksContext] Getting user from auth cache...')
     const user = await authCache.getUser()
+    
     if (!user) {
+      console.warn('[DecksContext] No user found - user is not logged in or session expired')
       console.timeEnd('[DecksContext] fetchDecksWithInfo')
       return []
     }
+    
+    console.log('[DecksContext] User found:', user.id)
 
     // Step 1: Get just the decks (fast, simple query)
     console.time('[DecksContext] getDecks')
