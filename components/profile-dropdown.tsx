@@ -29,25 +29,49 @@ export function ProfileDropdown() {
   }
 
   useEffect(() => {
+    let isMounted = true
+    
     // Get initial user
-    supabase.auth.getUser()
-      .then(({ data: { user } }) => {
-        setUser(user)
-        setLoading(false)
-      })
-      .catch((error) => {
+    const getInitialUser = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (isMounted) {
+          setUser(user)
+          setLoading(false)
+        }
+      } catch (error) {
         console.error('Error getting user:', error)
-        setLoading(false)
-      })
+        if (isMounted) {
+          setLoading(false)
+        }
+      }
+    }
+    getInitialUser()
 
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[ProfileDropdown] Auth state change:', event)
+      if (isMounted) {
+        // Always update user from session
+        setUser(session?.user ?? null)
+        setLoading(false)
+        
+        // On token refresh or initial session, re-fetch to ensure we have latest
+        if (event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+          const { data: { user } } = await supabase.auth.getUser()
+          if (isMounted) {
+            setUser(user)
+          }
+        }
+      }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      isMounted = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   const handleSignOut = async () => {

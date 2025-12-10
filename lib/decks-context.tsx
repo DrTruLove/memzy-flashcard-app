@@ -25,58 +25,49 @@ const DecksContext = createContext<DecksContextType | undefined>(undefined)
  * Fetcher function for SWR that loads decks with their info
  */
 async function fetchDecksWithInfo(): Promise<DeckWithInfo[]> {
-  const decks = await getUserDecks()
+  console.time('[DecksContext] fetchDecksWithInfo')
   
-  if (decks.length === 0) {
-    return []
-  }
-
-  const deckIds = decks.map(d => d.id)
-  const decksInfoMap = await getAllDecksInfo(deckIds)
-  
-  // Filter out empty decks and delete them from database
-  const nonEmptyDecks: DeckWithInfo[] = []
-  
-  for (const d of decks) {
-    const deckInfo = decksInfoMap.get(d.id)
-    const cardCount = deckInfo?.cardCount || 0
+  try {
+    const decks = await getUserDecks()
     
-    // Skip Favorites and Uncategorized decks - never delete them even if empty
-    if (d.name === 'Favorites' || d.name === 'Uncategorized') {
+    if (decks.length === 0) {
+      console.timeEnd('[DecksContext] fetchDecksWithInfo')
+      return []
+    }
+
+    const deckIds = decks.map(d => d.id)
+    const decksInfoMap = await getAllDecksInfo(deckIds)
+    
+    // Map decks to include info
+    const nonEmptyDecks: DeckWithInfo[] = decks.map(d => {
+      const deckInfo = decksInfoMap.get(d.id)
+      const cardCount = deckInfo?.cardCount || 0
       const isAiGenerated = d.name.toLowerCase().includes('ai') || 
                             d.description?.toLowerCase().includes('ai') ||
                             d.name.toLowerCase().includes('generated')
       
-      nonEmptyDecks.push({
+      return {
         ...d,
         cardCount,
         coverImage: deckInfo?.coverImage || undefined,
         isAiGenerated
-      })
-      continue
-    }
-    
-    // Keep all decks (don't auto-delete empty ones - user may want to keep them)
-    const isAiGenerated = d.name.toLowerCase().includes('ai') || 
-                          d.description?.toLowerCase().includes('ai') ||
-                          d.name.toLowerCase().includes('generated')
-    
-    nonEmptyDecks.push({
-      ...d,
-      cardCount,
-      coverImage: deckInfo?.coverImage || undefined,
-      isAiGenerated
+      }
     })
+    
+    console.timeEnd('[DecksContext] fetchDecksWithInfo')
+    return nonEmptyDecks
+  } catch (error) {
+    console.error('[DecksContext] Error fetching decks:', error)
+    console.timeEnd('[DecksContext] fetchDecksWithInfo')
+    return []
   }
-  
-  return nonEmptyDecks
 }
 
 /**
  * Provider component that wraps the app and provides deck data via SWR
  */
 export function DecksProvider({ children }: { children: ReactNode }) {
-  const { data, error, mutate } = useSWR<DeckWithInfo[]>(
+  const { data, error, mutate, isValidating } = useSWR<DeckWithInfo[]>(
     'user-decks',
     fetchDecksWithInfo,
     {
@@ -86,6 +77,12 @@ export function DecksProvider({ children }: { children: ReactNode }) {
       dedupingInterval: 5000, // Longer interval (5s) to prevent duplicate requests
       refreshInterval: 0, // Don't auto-refresh (manual only via mutate)
       keepPreviousData: true, // Keep showing old data while revalidating (prevents flash)
+      errorRetryCount: 3, // Retry failed requests up to 3 times
+      errorRetryInterval: 1000, // Wait 1s between retries
+      loadingTimeout: 10000, // Show loading for 10s max before error
+      onError: (err) => {
+        console.error('[DecksContext] SWR Error:', err)
+      }
     }
   )
 

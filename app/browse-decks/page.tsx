@@ -220,22 +220,25 @@ export default function BrowseDecksPage() {
                 <User className="h-5 w-5 text-purple-600" />
                 <h2 className="text-2xl font-bold text-foreground">{t.yourDecks}</h2>
               </div>
+              {/* Show loading indicator while loading */}
+              {loadingUserDecks && userDecks.length === 0 ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <Image 
+                      src="/loading-gem.gif" 
+                      alt="Loading" 
+                      width={64} 
+                      height={64} 
+                      className="mx-auto mb-2"
+                      unoptimized
+                    />
+                    <p className="text-muted-foreground">
+                      {primaryLanguage === 'es' ? 'Cargando tus mazos...' : 'Loading your decks...'}
+                    </p>
+                  </div>
+                </div>
+              ) : (
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {/* Show skeleton cards while loading */}
-                {loadingUserDecks && userDecks.length === 0 && (
-                  <>
-                    {[1, 2, 3].map((i) => (
-                      <Card key={`skeleton-${i}`} className="overflow-hidden">
-                        <Skeleton className="aspect-[3/2] w-full" />
-                        <div className="p-4 space-y-2">
-                          <Skeleton className="h-6 w-3/4" />
-                          <Skeleton className="h-4 w-full" />
-                          <Skeleton className="h-4 w-1/3" />
-                        </div>
-                      </Card>
-                    ))}
-                  </>
-                )}
                 {userDecks.map((deck) => {
                   const isSpecialDeck = (deck as any).originalName === 'Favorites' || (deck as any).originalName === 'Uncategorized'
                   const isEmpty = deck.cardCount === 0
@@ -294,6 +297,7 @@ export default function BrowseDecksPage() {
                   )
                 })}
               </div>
+              )}
             </div>
           )}
 

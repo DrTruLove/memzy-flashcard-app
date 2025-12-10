@@ -156,16 +156,18 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const isFreeUser = plan === SUBSCRIPTION_PLANS.FREE
   const isProUser = !isFreeUser
   
-  // Fetch actual deck count from database
+  // Fetch actual deck count from database (excluding special decks)
   const fetchActualDeckCount = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
+        // Count user-created decks, excluding Favorites and Uncategorized
         const { count } = await supabase
           .from('decks')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id)
           .eq('is_sample', false) // Only count user-created decks, not samples
+          .not('name', 'in', '("Favorites","Uncategorized")') // Exclude special decks
         
         setActualDeckCount(count || 0)
       }
@@ -208,11 +210,12 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
           .eq('user_id', userId)
         actualCardCount = cardCount || 0
         
-        // Count user's actual decks (excluding sample decks)
+        // Count user's actual decks (excluding sample decks, Favorites, and Uncategorized)
         const { count: deckCount } = await supabase
           .from('decks')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', userId)
+          .not('name', 'in', '("Favorites","Uncategorized")') // Exclude special decks
         actualDeckCountFromDb = deckCount || 0
         
         console.log('[Subscription] Actual counts from DB - cards:', actualCardCount, 'decks:', actualDeckCountFromDb)
