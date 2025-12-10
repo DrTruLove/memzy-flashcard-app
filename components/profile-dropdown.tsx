@@ -31,16 +31,42 @@ export function ProfileDropdown() {
   useEffect(() => {
     let isMounted = true
     
-    // Get initial user
+    // Get initial user from session (cached, fast)
     const getInitialUser = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser()
+        console.log('[ProfileDropdown] Getting initial session...')
+        
+        // First try getSession (uses cached localStorage session - fast)
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        
+        if (sessionError) {
+          console.error('[ProfileDropdown] Session error:', sessionError)
+        }
+        
+        if (session?.user) {
+          console.log('[ProfileDropdown] Found user from session:', session.user.email)
+          if (isMounted) {
+            setUser(session.user)
+            setLoading(false)
+          }
+          return
+        }
+        
+        // Fallback to getUser if no session
+        console.log('[ProfileDropdown] No session, trying getUser...')
+        const { data: { user }, error } = await supabase.auth.getUser()
+        
+        if (error) {
+          console.error('[ProfileDropdown] getUser error:', error)
+        }
+        
         if (isMounted) {
           setUser(user)
           setLoading(false)
+          console.log('[ProfileDropdown] User set to:', user?.email || 'null')
         }
       } catch (error) {
-        console.error('Error getting user:', error)
+        console.error('[ProfileDropdown] Error getting user:', error)
         if (isMounted) {
           setLoading(false)
         }
@@ -52,19 +78,11 @@ export function ProfileDropdown() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('[ProfileDropdown] Auth state change:', event)
+      console.log('[ProfileDropdown] Auth state change:', event, session?.user?.email || 'no user')
       if (isMounted) {
         // Always update user from session
         setUser(session?.user ?? null)
         setLoading(false)
-        
-        // On token refresh or initial session, re-fetch to ensure we have latest
-        if (event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
-          const { data: { user } } = await supabase.auth.getUser()
-          if (isMounted) {
-            setUser(user)
-          }
-        }
       }
     })
 
