@@ -2,8 +2,8 @@
 
 import { createContext, useContext, ReactNode, useEffect } from 'react'
 import useSWR from 'swr'
-import { getUserDecks, getAllDecksInfo } from './database'
 import { supabase } from './supabase'
+import { authCache } from './auth-cache'
 import type { Deck } from './database'
 
 interface DeckWithInfo extends Deck {
@@ -22,40 +22,87 @@ interface DecksContextType {
 const DecksContext = createContext<DecksContextType | undefined>(undefined)
 
 /**
- * Fetcher function for SWR that loads decks with their info
+ * Optimized fetcher - single query to get decks with card counts
  */
 async function fetchDecksWithInfo(): Promise<DeckWithInfo[]> {
   console.time('[DecksContext] fetchDecksWithInfo')
   
   try {
-    const decks = await getUserDecks()
-    
-    if (decks.length === 0) {
+    const user = await authCache.getUser()
+    if (!user) {
       console.timeEnd('[DecksContext] fetchDecksWithInfo')
       return []
     }
 
+    // Single optimized query: get decks with card count using left join
+    const { data: decks, error } = await supabase
+      .from('decks')
+      .select(`
+        *,
+        deck_cards(count)
+      `)
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('[DecksContext] Error fetching decks:', error)
+      console.timeEnd('[DecksContext] fetchDecksWithInfo')
+      return []
+    }
+
+    if (!decks || decks.length === 0) {
+      console.timeEnd('[DecksContext] fetchDecksWithInfo')
+      return []
+    }
+
+    // Get cover images for decks that have cards (separate query for efficiency)
     const deckIds = decks.map(d => d.id)
-    const decksInfoMap = await getAllDecksInfo(deckIds)
-    
+    const { data: coverData } = await supabase
+      .from('deck_cards')
+      .select('deck_id, flashcards(image_url)')
+      .in('deck_id', deckIds)
+      .eq('position', 0) // Only get the first card (cover)
+      .limit(deckIds.length)
+
+    // Build cover image map
+    const coverMap = new Map<string, string>()
+    coverData?.forEach((dc: any) => {
+      if (dc.flashcards?.image_url && !coverMap.has(dc.deck_id)) {
+        coverMap.set(dc.deck_id, dc.flashcards.image_url)
+      }
+    })
+
     // Map decks to include info
-    const nonEmptyDecks: DeckWithInfo[] = decks.map(d => {
-      const deckInfo = decksInfoMap.get(d.id)
-      const cardCount = deckInfo?.cardCount || 0
-      const isAiGenerated = d.name.toLowerCase().includes('ai') || 
+    const result: DeckWithInfo[] = decks.map((d: any) => {
+      // Extract card count from the aggregated result
+      const cardCount = d.deck_cards?.[0]?.count || 0
+      const isAiGenerated = d.name?.toLowerCase().includes('ai') || 
                             d.description?.toLowerCase().includes('ai') ||
-                            d.name.toLowerCase().includes('generated')
+                            d.name?.toLowerCase().includes('generated')
       
       return {
-        ...d,
+        id: d.id,
+        name: d.name,
+        description: d.description,
+        user_id: d.user_id,
+        created_at: d.created_at,
+        updated_at: d.updated_at,
+        is_sample: d.is_sample,
         cardCount,
-        coverImage: deckInfo?.coverImage || undefined,
+        coverImage: coverMap.get(d.id) || undefined,
         isAiGenerated
       }
     })
+
+    // Sort Favorites to top
+    result.sort((a, b) => {
+      if (a.name === 'Favorites') return -1
+      if (b.name === 'Favorites') return 1
+      return 0
+    })
     
     console.timeEnd('[DecksContext] fetchDecksWithInfo')
-    return nonEmptyDecks
+    return result
   } catch (error) {
     console.error('[DecksContext] Error fetching decks:', error)
     console.timeEnd('[DecksContext] fetchDecksWithInfo')
