@@ -47,7 +47,7 @@ if (typeof window !== 'undefined') {
 export default function MemzyPage() {
   const router = useRouter()
   const { primaryLanguage } = useLanguage()
-  const { decks: contextDecks, mutate: mutateDecks } = useDecks()
+  const { decks: contextDecks, mutate: mutateDecks, isLoading: isLoadingDecks } = useDecks()
   
   // FREE LIMIT — SUBSCRIPTION HOOK
   const { 
@@ -1976,7 +1976,18 @@ export default function MemzyPage() {
             {/* Existing Decks */}
             <div className="space-y-2">
               <h3 className="font-medium text-foreground">{t.selectExistingDecks}</h3>
-              {availableDecks.length === 0 ? (
+              {isLoadingDecks ? (
+                <div className="flex flex-col items-center justify-center py-6">
+                  <img 
+                    src="/loading-gem.gif" 
+                    alt="Loading..." 
+                    className="w-12 h-12"
+                  />
+                  <p className="text-sm text-muted-foreground mt-2">
+                    {primaryLanguage === 'es' ? 'Cargando mazos...' : 'Loading decks...'}
+                  </p>
+                </div>
+              ) : availableDecks.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">
                   {primaryLanguage === 'es' 
                     ? 'No tienes mazos aún. Crea uno arriba.' 
