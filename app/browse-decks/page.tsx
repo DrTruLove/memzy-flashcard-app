@@ -93,19 +93,34 @@ export default function BrowseDecksPage() {
   // Check authentication and load hidden sample decks
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
+      // Use getSession first for better reliability
+      const { data: { session } } = await supabase.auth.getSession()
+      const currentUser = session?.user || null
+      console.log('[BrowseDecks] Auth check - user:', currentUser?.email || 'none')
+      setUser(currentUser)
       
       // Load hidden sample decks from localStorage for this user
-      if (user) {
-        const hidden = localStorage.getItem(`hiddenSampleDecks_${user.id}`)
+      if (currentUser) {
+        const hidden = localStorage.getItem(`hiddenSampleDecks_${currentUser.id}`)
         if (hidden) {
           setHiddenSampleDecks(JSON.parse(hidden))
         }
       }
     }
     checkAuth()
-  }, [])
+    
+    // Also listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('[BrowseDecks] Auth state changed:', event)
+      setUser(session?.user || null)
+      // Refresh decks when auth changes
+      if (event === 'SIGNED_IN') {
+        mutateDecks()
+      }
+    })
+    
+    return () => subscription.unsubscribe()
+  }, [mutateDecks])
 
   // Memoize user decks transformation to avoid re-running on every render
   const userDecks = useMemo(() => {
