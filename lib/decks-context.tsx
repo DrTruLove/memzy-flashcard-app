@@ -28,16 +28,24 @@ async function fetchDecksWithInfo(): Promise<DeckWithInfo[]> {
   console.time('[DecksContext] fetchDecksWithInfo')
   
   try {
-    console.log('[DecksContext] Getting user from auth cache...')
-    const user = await authCache.getUser()
+    // Get session directly from Supabase (skip cache to ensure fresh data)
+    console.log('[DecksContext] Getting session from Supabase...')
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
     
-    if (!user) {
-      console.warn('[DecksContext] No user found - user is not logged in or session expired')
+    if (sessionError) {
+      console.error('[DecksContext] Session error:', sessionError)
       console.timeEnd('[DecksContext] fetchDecksWithInfo')
       return []
     }
     
-    console.log('[DecksContext] User found:', user.id)
+    if (!session?.user) {
+      console.warn('[DecksContext] No session/user found - not logged in')
+      console.timeEnd('[DecksContext] fetchDecksWithInfo')
+      return []
+    }
+    
+    const user = session.user
+    console.log('[DecksContext] User found:', user.id, user.email)
 
     // Step 1: Get just the decks (fast, simple query)
     console.time('[DecksContext] getDecks')
@@ -47,6 +55,8 @@ async function fetchDecksWithInfo(): Promise<DeckWithInfo[]> {
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
     console.timeEnd('[DecksContext] getDecks')
+    
+    console.log('[DecksContext] Decks query returned:', decks?.length || 0, 'decks')
 
     if (decksError) {
       console.error('[DecksContext] Error fetching decks:', decksError)
@@ -55,6 +65,7 @@ async function fetchDecksWithInfo(): Promise<DeckWithInfo[]> {
     }
 
     if (!decks || decks.length === 0) {
+      console.log('[DecksContext] No decks found for user')
       console.timeEnd('[DecksContext] fetchDecksWithInfo')
       return []
     }
