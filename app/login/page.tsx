@@ -72,7 +72,17 @@ export default function LoginPage() {
 
       if (signInError) throw signInError
 
-      if (data.user) {
+      if (data.user && data.session) {
+        console.log('[Login] Sign in successful, user:', data.user.email)
+        console.log('[Login] Session token exists:', !!data.session.access_token)
+        
+        // Wait a moment for session to be fully saved to localStorage
+        await new Promise(resolve => setTimeout(resolve, 200))
+        
+        // Verify session was saved
+        const { data: { session } } = await supabase.auth.getSession()
+        console.log('[Login] Session verified:', !!session)
+        
         // Get redirect URL and card index from query params
         const redirectUrl = searchParams.get('redirect')
         const cardIndex = searchParams.get('cardIndex')
@@ -89,7 +99,7 @@ export default function LoginPage() {
         }
       }
     } catch (err: any) {
-      console.error("Sign in error:", err)
+      console.error("[Login] Sign in error:", err)
       setError(err.message || t.invalidCredentials)
       setLoading(false)
     }

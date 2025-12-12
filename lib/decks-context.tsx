@@ -147,8 +147,15 @@ export function DecksProvider({ children }: { children: ReactNode }) {
 
   // Refresh decks when user signs in or out
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('[DecksContext] Auth state changed:', event, 'User:', session?.user?.email || 'none')
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+        console.log('[DecksContext] Refreshing decks due to auth change...')
+        // Clear the auth cache so we get fresh user data
+        authCache.clearCache()
+        if (session?.user) {
+          authCache.setUser(session.user)
+        }
         mutate()
       }
     })
