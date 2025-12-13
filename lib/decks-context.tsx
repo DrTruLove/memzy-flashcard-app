@@ -2,7 +2,7 @@
 
 import { createContext, useContext, ReactNode, useEffect } from 'react'
 import useSWR from 'swr'
-import { supabase } from './supabase'
+import { supabase, initializeAuth } from './supabase'
 import { authCache } from './auth-cache'
 import type { Deck } from './database'
 
@@ -28,7 +28,10 @@ async function fetchDecksWithInfo(): Promise<DeckWithInfo[]> {
   console.time('[DecksContext] fetchDecksWithInfo')
   
   try {
-    // Get session directly from Supabase (skip cache to ensure fresh data)
+    // Ensure auth is initialized before querying
+    await initializeAuth()
+    
+    // Get session directly from Supabase
     console.log('[DecksContext] Getting session from Supabase...')
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
     
