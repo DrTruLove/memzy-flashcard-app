@@ -80,6 +80,8 @@ async function fetchDecksWithInfo(): Promise<DeckWithInfo[]> {
       .in('deck_id', deckIds)
     console.timeEnd('[DecksContext] getCardData')
     
+    console.log('[DecksContext] deckCards result:', deckCards?.length || 0, 'rows')
+    
     if (cardsError) {
       console.error('[DecksContext] Error fetching cards:', cardsError)
     }
@@ -95,6 +97,8 @@ async function fetchDecksWithInfo(): Promise<DeckWithInfo[]> {
       }
       deckInfo.set(dc.deck_id, existing)
     })
+    
+    console.log('[DecksContext] deckInfo map:', Array.from(deckInfo.entries()))
 
     // Map decks to include info
     const result: DeckWithInfo[] = decks.map((d: any) => {
