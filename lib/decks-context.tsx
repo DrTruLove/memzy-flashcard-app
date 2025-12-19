@@ -51,7 +51,7 @@ async function fetchDecksWithInfo(): Promise<DeckWithInfo[]> {
     console.time('[DecksContext] getDecks')
     const { data: decks, error: decksError } = await supabase
       .from('decks')
-      .select('id, name, description, user_id, created_at, updated_at, is_sample')
+      .select('id, name, description, user_id, created_at, updated_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
     console.timeEnd('[DecksContext] getDecks')
@@ -114,7 +114,6 @@ async function fetchDecksWithInfo(): Promise<DeckWithInfo[]> {
         user_id: d.user_id,
         created_at: d.created_at,
         updated_at: d.updated_at,
-        is_sample: d.is_sample,
         cardCount: info?.count || 0,
         coverImage: info?.coverImage,
         isAiGenerated
