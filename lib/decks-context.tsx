@@ -72,32 +72,44 @@ async function fetchDecksWithInfo(): Promise<DeckWithInfo[]> {
 
     const deckIds = decks.map((d: any) => d.id)
 
-    // Step 2: Get card counts and cover images
+    // Step 2: Get card counts - simple count without joins
     console.time('[DecksContext] getCardData')
     const { data: deckCards, error: cardsError } = await supabase
       .from('deck_cards')
-      .select('deck_id, card_id, flashcards!inner(image_url)')
+      .select('deck_id, card_id')
       .in('deck_id', deckIds)
     console.timeEnd('[DecksContext] getCardData')
     
     console.log('[DecksContext] deckCards result:', deckCards?.length || 0, 'rows')
-    console.log('[DecksContext] First deckCard sample:', deckCards?.[0])
     
     if (cardsError) {
       console.error('[DecksContext] Error fetching cards:', cardsError)
     }
 
-    // Process card data - count cards and get first image per deck
+    // Count cards per deck
     const deckInfo = new Map<string, { count: number; coverImage?: string }>()
     ;(deckCards || []).forEach((dc: any) => {
       const existing = deckInfo.get(dc.deck_id) || { count: 0 }
       existing.count++
-      // Use first card with image as cover
-      if (!existing.coverImage && dc.flashcards?.image_url) {
-        existing.coverImage = dc.flashcards.image_url
-      }
       deckInfo.set(dc.deck_id, existing)
     })
+    
+    // Step 3: Get cover images (first flashcard image per deck)
+    for (const deckId of deckIds) {
+      const { data: firstCard } = await supabase
+        .from('deck_cards')
+        .select('card_id, flashcards(image_url)')
+        .eq('deck_id', deckId)
+        .limit(1)
+        .single()
+      
+      if (firstCard?.flashcards?.image_url) {
+        const info = deckInfo.get(deckId)
+        if (info) {
+          info.coverImage = firstCard.flashcards.image_url
+        }
+      }
+    }
     
     console.log('[DecksContext] deckInfo map:')
     deckInfo.forEach((info, deckId) => {
