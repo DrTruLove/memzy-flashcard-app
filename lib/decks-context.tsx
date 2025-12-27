@@ -101,7 +101,7 @@ async function fetchDecksWithInfo(): Promise<DeckWithInfo[]> {
         .select('card_id, flashcards(image_url)')
         .eq('deck_id', deckId)
         .limit(1)
-        .single()
+        .maybeSingle()
       
       if (firstCard?.flashcards?.image_url) {
         const info = deckInfo.get(deckId)
