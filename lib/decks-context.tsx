@@ -76,7 +76,7 @@ async function fetchDecksWithInfo(): Promise<DeckWithInfo[]> {
     console.time('[DecksContext] getCardData')
     const { data: deckCards, error: cardsError } = await supabase
       .from('deck_cards')
-      .select('deck_id, flashcards(image_url)')
+      .select('deck_id, card_id, flashcards!inner(image_url)')
       .in('deck_id', deckIds)
     console.timeEnd('[DecksContext] getCardData')
     
